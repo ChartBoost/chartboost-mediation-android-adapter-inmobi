@@ -37,6 +37,11 @@ class InMobiAdapter : PartnerAdapter {
     }
 
     /**
+     * A map of InMobi failed show results for the corresponding Helium placements.
+     */
+    private val inMobiShowFailureResultMap = mutableMapOf<String, Result<PartnerAd>>()
+
+    /**
      * Indicate whether GDPR currently applies to the user.
      */
     private var gdprApplies: Boolean? = null
@@ -223,7 +228,7 @@ class InMobiAdapter : PartnerAdapter {
      * @return Result.success(PartnerAd) if the ad was successfully shown, Result.failure(Exception) otherwise.
      */
     override suspend fun show(context: Context, partnerAd: PartnerAd): Result<PartnerAd> {
-        return when (partnerAd.request.format) {
+        when (partnerAd.request.format) {
             AdFormat.BANNER -> {
                 // Banner ads do not have a separate "show" mechanism.
                 Result.success(partnerAd)
@@ -232,16 +237,23 @@ class InMobiAdapter : PartnerAdapter {
                 (partnerAd.ad as? InMobiInterstitial)?.let { ad ->
                     if (ad.isReady) {
                         ad.show()
-                        Result.success(partnerAd)
                     } else {
                         LogController.d("$TAG Failed to show InMobi ${partnerAd.request.format.name} ad. Ad is not ready.")
-                        Result.failure(HeliumAdException(HeliumErrorCode.PARTNER_ERROR))
+                        return Result.failure(HeliumAdException(HeliumErrorCode.PARTNER_ERROR))
                     }
                 } ?: run {
                     LogController.d("$TAG Failed to show InMobi ${partnerAd.request.format.name} ad. Ad is null.")
-                    Result.failure(HeliumAdException(HeliumErrorCode.PARTNER_ERROR))
+                    return Result.failure(HeliumAdException(HeliumErrorCode.PARTNER_ERROR))
                 }
             }
+        }
+
+        // Check the map for show any saved show failures. If null, then we can proceed as a success.
+        inMobiShowFailureResultMap.remove(partnerAd.request.partnerPlacement)?.let {
+            LogController.d("$TAG Failed to show InMobi ${partnerAd.request.format.name} ad. Result failure")
+            return it
+        } ?: run {
+            return Result.success(partnerAd)
         }
     }
 
@@ -257,6 +269,8 @@ class InMobiAdapter : PartnerAdapter {
             AdFormat.BANNER -> destroyBannerAd(partnerAd)
             AdFormat.INTERSTITIAL, AdFormat.REWARDED -> {
                 // InMobi does not have destroy methods for their fullscreen ads.
+                // Remove show result for this partner ad. No longer needed.
+                inMobiShowFailureResultMap.remove(partnerAd.request.partnerPlacement)
                 Result.success(partnerAd)
             }
         }
@@ -425,7 +439,13 @@ class InMobiAdapter : PartnerAdapter {
         return object : InterstitialAdEventListener() {
             override fun onAdDisplayed(ad: InMobiInterstitial, info: AdMetaInfo) {}
 
-            override fun onAdDisplayFailed(ad: InMobiInterstitial) {}
+            override fun onAdDisplayFailed(ad: InMobiInterstitial) {
+                // Log the ad display error and add it to our show result map as a Result.failure().
+                LogController.d("$TAG Failed to show InMobi ${request.format.name} ad: onAdDisplayFailed")
+                inMobiShowFailureResultMap[request.partnerPlacement] = Result.failure(
+                    HeliumAdException(HeliumErrorCode.PARTNER_ERROR)
+                )
+            }
 
             override fun onAdDismissed(ad: InMobiInterstitial) {
                 partnerAdListener.onPartnerAdDismissed(
