@@ -16,6 +16,7 @@ import kotlinx.coroutines.Dispatchers.Main
 import kotlinx.coroutines.withContext
 import org.json.JSONException
 import org.json.JSONObject
+import kotlin.coroutines.Continuation
 import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
 
@@ -80,30 +81,29 @@ class InMobiAdapter : PartnerAdapter {
         context: Context,
         partnerConfiguration: PartnerConfiguration
     ): Result<Unit> {
-        return suspendCoroutine { continuation ->
-            partnerConfiguration.credentials[ACCOUNT_ID_KEY]?.let { account_id ->
-                val gdprConsent = gdprApplies?.let {
-                    getGDPRJsonObject(it)
-                }
+        partnerConfiguration.credentials[ACCOUNT_ID_KEY]?.let { account_id ->
+            val gdprConsent = gdprApplies?.let {
+                buildGdprJsonObject(it)
+            }
 
+            return suspendCoroutine { continuation ->
                 InMobiSdk.init(context.applicationContext, account_id, gdprConsent) { error ->
-                    error?.let {
-                        LogController.e("$TAG Failed to initialize InMobi SDK with error: ${error.message}")
-                        continuation.resume(
+                    continuation.resume(
+                        error?.let {
+                            LogController.e("$TAG Failed to initialize InMobi SDK with error: ${it.message}")
                             Result.failure(HeliumAdException(HeliumErrorCode.PARTNER_SDK_NOT_INITIALIZED))
-                        )
-                    } ?: run {
-                        continuation.resume(
+                        } ?: run {
                             Result.success(
                                 LogController.i("$TAG InMobi SDK successfully initialized.")
                             )
-                        )
-                    }
+                        }
+                    )
                 }
-            } ?: run {
-                LogController.e("$TAG Failed to initialize InMobi SDK: Missing account ID.")
-                continuation.resumeWith(Result.failure(HeliumAdException(HeliumErrorCode.PARTNER_SDK_NOT_INITIALIZED)))
+                InMobiSdk.setLogLevel(InMobiSdk.LogLevel.DEBUG)
             }
+        } ?: run {
+            LogController.e("$TAG Failed to initialize InMobi SDK: Missing account ID.")
+            return Result.failure(HeliumAdException(HeliumErrorCode.PARTNER_SDK_NOT_INITIALIZED))
         }
     }
 
@@ -113,17 +113,18 @@ class InMobiAdapter : PartnerAdapter {
      * @param gdprConsent a boolean whether GDPR is given consent or not.
      * @return a [JSONObject] object as to whether GDPR  .
      */
-    private fun getGDPRJsonObject(gdprConsent: Boolean): JSONObject {
-        val consentObject = JSONObject()
-        try {
-            // Provide correct consent value to sdk which is obtained by User
-            consentObject.put(InMobiSdk.IM_GDPR_CONSENT_AVAILABLE, gdprConsent)
-            // Provide 0 if GDPR is not applicable and 1 if applicable
-            consentObject.put("gdpr", if (gdprApplies == true) "1" else "0")
-        } catch (e: JSONException) {
-            // DO NOTHING
+    private fun buildGdprJsonObject(gdprConsent: Boolean): JSONObject {
+        return JSONObject().apply {
+            try {
+                // Provide correct consent value to sdk which is obtained by User
+                put(InMobiSdk.IM_GDPR_CONSENT_AVAILABLE, gdprConsent)
+                // Provide 0 if GDPR is not applicable and 1 if applicable
+                put("gdpr", if (gdprApplies == true) "1" else "0")
+            } catch (error: JSONException) {
+                // DO NOTHING
+                LogController.e("$TAG Failed to build GDPR JSON Object with error: ${error.message}")
+            }
         }
-        return consentObject
     }
 
     /**
@@ -144,9 +145,9 @@ class InMobiAdapter : PartnerAdapter {
      */
     override fun setGdprConsentStatus(context: Context, gdprConsentStatus: GdprConsentStatus) {
         if (gdprApplies == true) {
-            val gdprJson =
-                getGDPRJsonObject(GdprConsentStatus.GDPR_CONSENT_GRANTED == gdprConsentStatus)
-            InMobiSdk.setPartnerGDPRConsent(gdprJson)
+            InMobiSdk.setPartnerGDPRConsent(
+                buildGdprJsonObject(GdprConsentStatus.GDPR_CONSENT_GRANTED == gdprConsentStatus)
+            )
         }
     }
 
@@ -162,7 +163,7 @@ class InMobiAdapter : PartnerAdapter {
         hasGivenCcpaConsent: Boolean,
         privacyString: String?
     ) {
-        //NO-OP: InMobi handles CCPA in their dashboard.
+        // NO-OP: InMobi handles CCPA on their dashboard.
     }
 
     /**
@@ -172,7 +173,7 @@ class InMobiAdapter : PartnerAdapter {
      * @param isSubjectToCoppa True if the user is subject to COPPA, false otherwise.
      */
     override fun setUserSubjectToCoppa(context: Context, isSubjectToCoppa: Boolean) {
-        //NO-OP: InMobi does not have an API for setting COPPA.
+        // NO-OP: InMobi does not have an API for setting COPPA.
     }
 
     /**
@@ -186,7 +187,7 @@ class InMobiAdapter : PartnerAdapter {
     override suspend fun fetchBidderInformation(
         context: Context,
         request: PreBidRequest
-    ): Map<String, String> = emptyMap()
+    ) = emptyMap<String, String>()
 
     /**
      * Attempt to load a InMobi ad.
@@ -275,76 +276,88 @@ class InMobiAdapter : PartnerAdapter {
         request: AdLoadRequest,
         partnerAdListener: PartnerAdListener
     ): Result<PartnerAd> {
-        return suspendCoroutine { continuation ->
-            request.partnerPlacement.toLongOrNull()?.let { placement ->
-                (context as? Activity)?.let { activity ->
+        request.partnerPlacement.toLongOrNull()?.let { placement ->
+            // There should be no placement with this value.
+            if (placement == 0L) return Result.failure(HeliumAdException(HeliumErrorCode.NO_FILL))
 
-                    // There should be no placement with this value.
-                    if (placement == 0L) return@suspendCoroutine
-
-                    val listener = object : BannerAdEventListener() {
-                        override fun onAdLoadSucceeded(ad: InMobiBanner, info: AdMetaInfo) {
-                            continuation.resume(
-                                Result.success(
-                                    PartnerAd(
-                                        ad = ad,
-                                        details = emptyMap(),
-                                        request = request
-                                    )
-                                )
-                            )
-                        }
-
-                        override fun onAdLoadFailed(
-                            ad: InMobiBanner,
-                            status: InMobiAdRequestStatus
-                        ) {
-                            LogController.d("$TAG failed to load InMobi banner ad. InMobi with status: ${status.message}")
-                            continuation.resume(
-                                Result.failure(HeliumAdException(HeliumErrorCode.NO_FILL))
-                            )
-                        }
-
-                        override fun onAdDisplayed(ad: InMobiBanner) {}
-
-                        override fun onAdDismissed(ad: InMobiBanner) {}
-
-                        override fun onAdClicked(ad: InMobiBanner, map: MutableMap<Any, Any>?) {
-                            partnerAdListener.onPartnerAdClicked(
-                                PartnerAd(
-                                    ad = ad,
-                                    details = emptyMap(),
-                                    request = request
-                                )
-                            )
-                        }
-                    }
-
+            (context as? Activity)?.let { activity ->
+                return suspendCoroutine { continuation ->
+                    // Load an InMobiBanner
                     InMobiBanner(activity, placement).apply {
                         request.size?.let { size ->
-                            val widthDp = size.width * context.resources.displayMetrics.densityDpi
-                            val heightDp = size.height * context.resources.displayMetrics.densityDpi
-
                             setEnableAutoRefresh(false)
-                            setBannerSize(widthDp, heightDp)
-                            setListener(listener)
+                            setBannerSize(size.width, size.height)
+                            setListener(
+                                buildBannerAdDelegate(
+                                    request = request,
+                                    partnerAdListener = partnerAdListener,
+                                    continuation = continuation
+                                )
+                            )
                             load()
-                        } ?: run {
-                            LogController.d("$TAG InMobi failed to load banner ad. Size is null.")
-                            continuation.resume(Result.failure(HeliumAdException(HeliumErrorCode.NO_FILL)))
                         }
                     }
-                } ?: run {
-                    LogController.d("$TAG InMobi failed to load banner ad. Activity context is required.")
-                    continuation.resume(Result.failure(HeliumAdException(HeliumErrorCode.NO_FILL)))
                 }
-
             } ?: run {
-                LogController.d(
-                    "$TAG failed to load InMobi ${request.format.name} ad. Placement is not valid."
+                LogController.d("$TAG InMobi failed to load banner ad. Activity context is required.")
+                return (Result.failure(HeliumAdException(HeliumErrorCode.NO_FILL)))
+            }
+        } ?: run {
+            LogController.d(
+                "$TAG failed to load InMobi ${request.format.name} ad. Placement is not valid."
+            )
+            return Result.failure(HeliumAdException(HeliumErrorCode.NO_FILL))
+        }
+    }
+
+    /**
+     * Build a [BannerAdEventListener] listener and return it.
+     *
+     * @param request An [AdLoadRequest] instance containing relevant data for the current ad load call.
+     * @param partnerAdListener A [PartnerAdListener] to notify Helium of ad events.
+     * @param continuation A [Continuation] to notify Helium of load success or failure.
+     *
+     * @return A built [BannerAdEventListener] listener.
+     */
+    private fun buildBannerAdDelegate(
+        request: AdLoadRequest,
+        partnerAdListener: PartnerAdListener,
+        continuation: Continuation<Result<PartnerAd>>
+    ): BannerAdEventListener {
+        return object : BannerAdEventListener() {
+            override fun onAdLoadSucceeded(ad: InMobiBanner, info: AdMetaInfo) {
+                continuation.resume(
+                    Result.success(
+                        PartnerAd(
+                            ad = ad,
+                            details = emptyMap(),
+                            request = request
+                        )
+                    )
                 )
+            }
+
+            override fun onAdLoadFailed(
+                ad: InMobiBanner,
+                status: InMobiAdRequestStatus
+            ) {
+                LogController.d("$TAG failed to load InMobi banner ad. InMobi with status: ${status.message}")
                 continuation.resume(
                     Result.failure(HeliumAdException(HeliumErrorCode.NO_FILL))
+                )
+            }
+
+            override fun onAdDisplayed(ad: InMobiBanner) {}
+
+            override fun onAdDismissed(ad: InMobiBanner) {}
+
+            override fun onAdClicked(ad: InMobiBanner, map: MutableMap<Any, Any>?) {
+                partnerAdListener.onPartnerAdClicked(
+                    PartnerAd(
+                        ad = ad,
+                        details = emptyMap(),
+                        request = request
+                    )
                 )
             }
         }
@@ -364,95 +377,115 @@ class InMobiAdapter : PartnerAdapter {
         request: AdLoadRequest,
         partnerAdListener: PartnerAdListener
     ): Result<PartnerAd> {
-        return suspendCoroutine { continuation ->
-            request.partnerPlacement.toLongOrNull()?.let { placement ->
+        request.partnerPlacement.toLongOrNull()?.let { placement ->
+            // There should be no placement with this value.
+            if (placement == 0L) return Result.failure(HeliumAdException(HeliumErrorCode.NO_FILL))
 
-                // There should be no placement with this value.
-                if (placement == 0L) return@suspendCoroutine
+            return suspendCoroutine { continuation ->
+                InMobiInterstitial(
+                    context,
+                    placement,
+                    buildFullScreenAdDelegate(
+                        request = request,
+                        partnerAdListener = partnerAdListener,
+                        continuation = continuation
+                    )
+                ).load()
+            }
+        } ?: run {
+            LogController.w(
+                "$TAG failed to load InMobi ${request.format.name} ad. Placement is not valid."
+            )
+            return Result.failure(HeliumAdException(HeliumErrorCode.NO_FILL))
+        }
+    }
 
-                val listener = object : InterstitialAdEventListener() {
-                    override fun onAdDisplayed(ad: InMobiInterstitial, info: AdMetaInfo) {}
+    /**
+     * Build a [InterstitialAdEventListener] listener and return it.
+     *
+     * @param request An [AdLoadRequest] instance containing relevant data for the current ad load call.
+     * @param partnerAdListener A [PartnerAdListener] to notify Helium of ad events.
+     * @param continuation A [Continuation] to notify Helium of load success or failure.
+     *
+     * @return A built [InterstitialAdEventListener] listener.
+     */
+    private fun buildFullScreenAdDelegate(
+        request: AdLoadRequest,
+        partnerAdListener: PartnerAdListener,
+        continuation: Continuation<Result<PartnerAd>>
+    ): InterstitialAdEventListener {
+        return object : InterstitialAdEventListener() {
+            override fun onAdDisplayed(ad: InMobiInterstitial, info: AdMetaInfo) {}
 
-                    override fun onAdDisplayFailed(ad: InMobiInterstitial) {}
+            override fun onAdDisplayFailed(ad: InMobiInterstitial) {}
 
-                    override fun onAdDismissed(ad: InMobiInterstitial) {
-                        partnerAdListener.onPartnerAdDismissed(
-                            PartnerAd(
-                                ad = ad,
-                                details = emptyMap(),
-                                request = request
-                            ), null
+            override fun onAdDismissed(ad: InMobiInterstitial) {
+                partnerAdListener.onPartnerAdDismissed(
+                    PartnerAd(
+                        ad = ad,
+                        details = emptyMap(),
+                        request = request
+                    ), null
+                )
+            }
+
+            override fun onAdClicked(ad: InMobiInterstitial, map: MutableMap<Any, Any>?) {
+                partnerAdListener.onPartnerAdClicked(
+                    PartnerAd(
+                        ad = ad,
+                        details = emptyMap(),
+                        request = request
+                    )
+                )
+            }
+
+            override fun onAdLoadSucceeded(ad: InMobiInterstitial, adMetaInfo: AdMetaInfo) {
+                continuation.resume(
+                    Result.success(
+                        PartnerAd(
+                            ad = ad,
+                            details = emptyMap(),
+                            request = request
                         )
-                    }
+                    )
+                )
+            }
 
-                    override fun onAdClicked(ad: InMobiInterstitial, map: MutableMap<Any, Any>?) {
-                        partnerAdListener.onPartnerAdClicked(
-                            PartnerAd(
-                                ad = ad,
-                                details = emptyMap(),
-                                request = request
-                            )
-                        )
-                    }
-
-                    override fun onAdLoadSucceeded(ad: InMobiInterstitial, adMetaInfo: AdMetaInfo) {
-                        continuation.resume(
-                            Result.success(
-                                PartnerAd(
-                                    ad = ad,
-                                    details = emptyMap(),
-                                    request = request
-                                )
-                            )
-                        )
-                    }
-
-                    override fun onAdLoadFailed(
-                        ad: InMobiInterstitial,
-                        status: InMobiAdRequestStatus
-                    ) {
-                        LogController.d(
-                            "$TAG failed to load InMobi ${request.format.name} ad " +
-                                    "with status code: ${status.statusCode} message: ${status.message}"
-                        )
-                        continuation.resume(
-                            Result.failure(HeliumAdException(HeliumErrorCode.NO_FILL))
-                        )
-                    }
-
-                    override fun onRewardsUnlocked(
-                        ad: InMobiInterstitial,
-                        rewardMap: MutableMap<Any, Any>?
-                    ) {
-                        rewardMap?.let {
-
-                            val reward = rewardMap.keys.iterator().next().let { rewardKey ->
-                                rewardMap[rewardKey]
-                            }
-
-                            LogController.d("$TAG InMobi reward is $reward. Name: ${rewardMap[placement]}")
-                            partnerAdListener.onPartnerAdRewarded(
-                                PartnerAd(
-                                    ad,
-                                    details = emptyMap(),
-                                    request = request
-                                ),
-                                Reward(
-                                    reward as Int,
-                                    rewardMap[placement].toString()
-                                )
-                            )
-                        }
-                    }
-                }
-                InMobiInterstitial(context, placement, listener).load()
-            } ?: run {
-                LogController.w(
-                    "$TAG failed to load InMobi ${request.format.name} ad. Placement is not valid."
+            override fun onAdLoadFailed(
+                ad: InMobiInterstitial,
+                status: InMobiAdRequestStatus
+            ) {
+                LogController.d(
+                    "$TAG failed to load InMobi ${request.format.name} ad " +
+                            "with status code: ${status.statusCode} message: ${status.message}"
                 )
                 continuation.resume(
                     Result.failure(HeliumAdException(HeliumErrorCode.NO_FILL))
                 )
+            }
+
+            override fun onRewardsUnlocked(
+                ad: InMobiInterstitial,
+                rewardMap: MutableMap<Any, Any>?
+            ) {
+                rewardMap?.let {
+                    val reward = rewardMap.keys.iterator().next().let { rewardKey ->
+                        rewardMap[rewardKey]
+                    } ?: 0
+
+                    LogController.d("$TAG InMobi reward is $reward. For ad: ${request.partnerPlacement}")
+                    partnerAdListener.onPartnerAdRewarded(
+                        PartnerAd(
+                            ad,
+                            details = emptyMap(),
+                            request = request
+                        ),
+                        Reward(
+                            reward as Int,
+                            request.partnerPlacement
+                        )
+                    )
+                }
             }
         }
     }
