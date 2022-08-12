@@ -127,7 +127,7 @@ class InMobiAdapter : PartnerAdapter {
                 put("gdpr", if (gdprApplies == true) "1" else "0")
             } catch (error: JSONException) {
                 // DO NOTHING
-                LogController.e("$TAG Failed to build GDPR JSON Object with error: ${error.message}")
+                LogController.e("$TAG Failed to build GDPR JSONObject with error: ${error.message}")
             }
         }
     }
