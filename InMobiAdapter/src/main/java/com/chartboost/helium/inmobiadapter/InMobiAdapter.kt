@@ -281,10 +281,15 @@ class InMobiAdapter : PartnerAdapter {
             if (placement == 0L) return Result.failure(HeliumAdException(HeliumErrorCode.NO_FILL))
 
             (context as? Activity)?.let { activity ->
-                return suspendCoroutine { continuation ->
-                    // Load an InMobiBanner
-                    InMobiBanner(activity, placement).apply {
-                        request.size?.let { size ->
+                request.size?.let { size ->
+                    // InMobi silently fails and causes the coroutine from returning a result.
+                    // We will check for the banner size and return a failure if the sizes are either 0.
+                    if ((size.width == 0) or (size.height == 0))
+                        return Result.failure(HeliumAdException(HeliumErrorCode.NO_FILL))
+
+                    return suspendCoroutine { continuation ->
+                        // Load an InMobiBanner
+                        InMobiBanner(activity, placement).apply {
                             setEnableAutoRefresh(false)
                             setBannerSize(size.width, size.height)
                             setListener(
@@ -297,6 +302,9 @@ class InMobiAdapter : PartnerAdapter {
                             load()
                         }
                     }
+                } ?: run {
+                    LogController.d("$TAG InMobi failed to load banner ad. Size can't be null.")
+                    return (Result.failure(HeliumAdException(HeliumErrorCode.NO_FILL)))
                 }
             } ?: run {
                 LogController.d("$TAG InMobi failed to load banner ad. Activity context is required.")
