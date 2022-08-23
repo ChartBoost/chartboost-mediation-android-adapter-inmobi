@@ -121,7 +121,7 @@ class InMobiAdapter : PartnerAdapter {
     /**
      * Build a [JSONObject] that will be passed to the InMobi SDK for GDPR during [setUp].
      *
-     * @param gdprConsent a boolean whether GDPR is given consent or not.
+     * @param gdprConsent A Boolean indicating whether GDPR consent is granted or not.
      * @return a [JSONObject] object as to whether GDPR  .
      */
     private fun buildGdprJsonObject(gdprConsent: Boolean): JSONObject {
