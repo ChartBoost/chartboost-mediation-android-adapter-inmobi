@@ -13,6 +13,7 @@ import com.inmobi.ads.listeners.BannerAdEventListener
 import com.inmobi.ads.listeners.InterstitialAdEventListener
 import com.inmobi.sdk.InMobiSdk
 import kotlinx.coroutines.Dispatchers.Main
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import org.json.JSONException
 import org.json.JSONObject
@@ -37,33 +38,14 @@ class InMobiAdapter : PartnerAdapter {
     }
 
     /**
-     * Provides a way for [InMobiAdapter] to intercept display events.
+     * A lambda [Unit] to listen for successful InMobi's ad shows.
      */
-    private abstract class InMobiIntermediateListener() : InterstitialAdEventListener() {
-        var inMobiAdDisplayedListener: InMobiAdDisplayedListener? = null
-    }
+    private var onShowSuccess: (InMobiInterstitial, AdMetaInfo) -> Unit = { _, _ -> }
 
     /**
-     * The display events [InMobiAdapter] needs to know about.
+     * A lambda [Unit] to listen for failed InMobi's ad shows.
      */
-    private interface InMobiAdDisplayedListener {
-        /**
-         * When an ad is displayed
-         */
-        fun onAdDisplayed()
-
-        /**
-         * When an ad fails to display.
-         */
-        fun onAdDisplayFailed()
-    }
-
-    /**
-     * Map of requests to the listeners used to load the request. This is required to intercept
-     * show events.
-     */
-    private val inMobiRequestToIntermediateListenersMap =
-        mutableMapOf<AdLoadRequest, InMobiIntermediateListener>()
+    private var onShowError: (InMobiInterstitial) -> Unit = {}
 
     /**
      * Indicate whether GDPR currently applies to the user.
@@ -259,28 +241,22 @@ class InMobiAdapter : PartnerAdapter {
             }
             AdFormat.INTERSTITIAL, AdFormat.REWARDED -> {
                 (partnerAd.ad as? InMobiInterstitial)?.let { ad ->
-                    val intermediateListener =
-                        inMobiRequestToIntermediateListenersMap[partnerAd.request]
-                    if (ad.isReady && intermediateListener != null) {
-                        suspendCoroutine { continuation ->
-                            intermediateListener.inMobiAdDisplayedListener =
-                                object : InMobiAdDisplayedListener {
-                                    override fun onAdDisplayed() {
-                                        continuation.resume(Result.success(partnerAd))
-                                        inMobiRequestToIntermediateListenersMap.remove(partnerAd.request)
-                                    }
+                    if (ad.isReady) {
+                        suspendCancellableCoroutine { continuation ->
+                            onShowSuccess = { _, _ ->
+                                continuation.resume(
+                                    Result.success(partnerAd)
+                                )
+                            }
 
-                                    override fun onAdDisplayFailed() {
-                                        continuation.resume(
-                                            Result.failure(
-                                                HeliumAdException(
-                                                    HeliumErrorCode.PARTNER_ERROR
-                                                )
-                                            )
-                                        )
-                                        inMobiRequestToIntermediateListenersMap.remove(partnerAd.request)
-                                    }
-                                }
+                            onShowError = {
+                                LogController.d("$TAG onShowError Failed to show InMobi ${partnerAd.request.partnerPlacement} ad.")
+                                continuation.resume(
+                                    Result.failure(
+                                        HeliumAdException(HeliumErrorCode.PARTNER_ERROR)
+                                    )
+                                )
+                            }
                             ad.show()
                         }
                     } else {
@@ -292,7 +268,7 @@ class InMobiAdapter : PartnerAdapter {
                     Result.failure(HeliumAdException(HeliumErrorCode.PARTNER_ERROR))
                 }
             }
-            else -> Result.failure(HeliumAdException(HeliumErrorCode.PARTNER_ERROR))
+            else -> Result.failure((HeliumAdException(HeliumErrorCode.PARTNER_ERROR)))
         }
     }
 
@@ -308,8 +284,7 @@ class InMobiAdapter : PartnerAdapter {
             AdFormat.BANNER -> destroyBannerAd(partnerAd)
             AdFormat.INTERSTITIAL, AdFormat.REWARDED -> {
                 // InMobi does not have destroy methods for their fullscreen ads.
-                // Remove intermediate listener for this partner ad. No longer needed.
-                inMobiRequestToIntermediateListenersMap.remove(partnerAd.request)
+                // Remove show result for this partner ad. No longer needed.
                 Result.success(partnerAd)
             }
         }
@@ -443,16 +418,14 @@ class InMobiAdapter : PartnerAdapter {
             if (placement == 0L) return Result.failure(HeliumAdException(HeliumErrorCode.NO_FILL))
 
             return suspendCoroutine { continuation ->
-                val inMobiListener = buildFullScreenAdListener(
-                    request = request,
-                    partnerAdListener = partnerAdListener,
-                    continuation = continuation
-                )
-                inMobiRequestToIntermediateListenersMap[request] = inMobiListener
                 InMobiInterstitial(
                     context,
                     placement,
-                    inMobiListener
+                    buildFullScreenAdListener(
+                        request = request,
+                        partnerAdListener = partnerAdListener,
+                        continuation = continuation
+                    )
                 ).load()
             }
         } ?: run {
@@ -464,28 +437,26 @@ class InMobiAdapter : PartnerAdapter {
     }
 
     /**
-     * Build a [InMobiIntermediateListener] listener and return it.
+     * Build a [InterstitialAdEventListener] listener and return it.
      *
      * @param request An [AdLoadRequest] instance containing relevant data for the current ad load call.
      * @param partnerAdListener A [PartnerAdListener] to notify Helium of ad events.
      * @param continuation A [Continuation] to notify Helium of load success or failure.
      *
-     * @return A built [InMobiIntermediateListener] listener.
+     * @return A built [InterstitialAdEventListener] listener.
      */
     private fun buildFullScreenAdListener(
         request: AdLoadRequest,
         partnerAdListener: PartnerAdListener,
         continuation: Continuation<Result<PartnerAd>>
-    ): InMobiIntermediateListener {
-        return object : InMobiIntermediateListener() {
+    ): InterstitialAdEventListener {
+        return object : InterstitialAdEventListener() {
             override fun onAdDisplayed(ad: InMobiInterstitial, info: AdMetaInfo) {
-                inMobiAdDisplayedListener?.onAdDisplayed()
-                    ?: LogController.e("Error when configuring InMobiAdapter")
+                onShowSuccess(ad, info)
             }
 
             override fun onAdDisplayFailed(ad: InMobiInterstitial) {
-                inMobiAdDisplayedListener?.onAdDisplayFailed()
-                    ?: LogController.e("Error when configuring InMobiAdapter")
+                onShowError(ad)
             }
 
             override fun onAdDismissed(ad: InMobiInterstitial) {
