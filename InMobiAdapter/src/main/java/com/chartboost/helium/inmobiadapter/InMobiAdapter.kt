@@ -40,12 +40,12 @@ class InMobiAdapter : PartnerAdapter {
     /**
      * A lambda [Unit] to listen for successful InMobi's ad shows.
      */
-    private var onShowSuccess: (InMobiInterstitial, AdMetaInfo) -> Unit = { _, _ -> }
+    private var onShowSuccess: () -> Unit = {}
 
     /**
      * A lambda [Unit] to listen for failed InMobi's ad shows.
      */
-    private var onShowError: (InMobiInterstitial) -> Unit = {}
+    private var onShowError: () -> Unit = {}
 
     /**
      * Indicate whether GDPR currently applies to the user.
@@ -243,7 +243,7 @@ class InMobiAdapter : PartnerAdapter {
                 (partnerAd.ad as? InMobiInterstitial)?.let { ad ->
                     if (ad.isReady) {
                         suspendCancellableCoroutine { continuation ->
-                            onShowSuccess = { _, _ ->
+                            onShowSuccess = {
                                 continuation.resume(
                                     Result.success(partnerAd)
                                 )
@@ -452,11 +452,11 @@ class InMobiAdapter : PartnerAdapter {
     ): InterstitialAdEventListener {
         return object : InterstitialAdEventListener() {
             override fun onAdDisplayed(ad: InMobiInterstitial, info: AdMetaInfo) {
-                onShowSuccess(ad, info)
+                onShowSuccess()
             }
 
             override fun onAdDisplayFailed(ad: InMobiInterstitial) {
-                onShowError(ad)
+                onShowError()
             }
 
             override fun onAdDismissed(ad: InMobiInterstitial) {
