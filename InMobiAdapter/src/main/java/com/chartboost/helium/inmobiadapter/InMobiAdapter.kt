@@ -38,7 +38,7 @@ class InMobiAdapter : PartnerAdapter {
     }
 
     /**
-     * A lambda [Unit] to listen for successful InMobi's ad shows.
+     * A lambda to call for successful InMobi ad shows.
      */
     private var onShowSuccess: () -> Unit = {}
 
