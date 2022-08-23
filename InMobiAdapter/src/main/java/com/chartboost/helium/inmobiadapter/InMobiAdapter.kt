@@ -43,7 +43,7 @@ class InMobiAdapter : PartnerAdapter {
     private var onShowSuccess: () -> Unit = {}
 
     /**
-     * A lambda [Unit] to listen for failed InMobi's ad shows.
+     * A lambda to call for failed InMobi ad shows.
      */
     private var onShowError: () -> Unit = {}
 
