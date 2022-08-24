@@ -27,6 +27,16 @@ import kotlin.coroutines.suspendCoroutine
 class InMobiAdapter : PartnerAdapter {
     companion object {
         /**
+         * Log level option that can be set to alter the output verbosity of the InMobi SDK.
+         */
+        public var logLevel = InMobiSdk.LogLevel.NONE
+            set(value) {
+                field = value
+                InMobiSdk.setLogLevel(value)
+                LogController.d("$TAG InMobi log level set to $value.")
+            }
+
+        /**
          * The tag used for logging messages.
          */
         private val TAG = "[${this::class.java.simpleName}]"
@@ -92,13 +102,13 @@ class InMobiAdapter : PartnerAdapter {
         context: Context,
         partnerConfiguration: PartnerConfiguration
     ): Result<Unit> {
-        partnerConfiguration.credentials[ACCOUNT_ID_KEY]?.let { account_id ->
+        partnerConfiguration.credentials[ACCOUNT_ID_KEY]?.let { accountId ->
             val gdprConsent = gdprApplies?.let {
                 buildGdprJsonObject(it)
             }
 
             return suspendCoroutine { continuation ->
-                InMobiSdk.init(context.applicationContext, account_id, gdprConsent) { error ->
+                InMobiSdk.init(context.applicationContext, accountId, gdprConsent) { error ->
                     continuation.resume(
                         error?.let {
                             LogController.e("$TAG Failed to initialize InMobi SDK with error: ${it.message}")
@@ -110,7 +120,6 @@ class InMobiAdapter : PartnerAdapter {
                         }
                     )
                 }
-                InMobiSdk.setLogLevel(InMobiSdk.LogLevel.DEBUG)
             }
         } ?: run {
             LogController.e("$TAG Failed to initialize InMobi SDK: Missing account ID.")
