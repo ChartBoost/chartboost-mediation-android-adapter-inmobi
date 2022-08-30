@@ -33,13 +33,8 @@ class InMobiAdapter : PartnerAdapter {
             set(value) {
                 field = value
                 InMobiSdk.setLogLevel(value)
-                LogController.d("$TAG InMobi log level set to $value.")
+                LogController.d("InMobi log level set to $value.")
             }
-
-        /**
-         * The tag used for logging messages.
-         */
-        private val TAG = "[${this::class.java.simpleName}]"
 
         /**
          * Key for parsing the InMobi SDK account ID.
@@ -111,18 +106,18 @@ class InMobiAdapter : PartnerAdapter {
                 InMobiSdk.init(context.applicationContext, accountId, gdprConsent) { error ->
                     continuation.resume(
                         error?.let {
-                            LogController.e("$TAG Failed to initialize InMobi SDK with error: ${it.message}")
+                            LogController.e("Failed to initialize InMobi SDK with error: ${it.message}")
                             Result.failure(HeliumAdException(HeliumErrorCode.PARTNER_SDK_NOT_INITIALIZED))
                         } ?: run {
                             Result.success(
-                                LogController.i("$TAG InMobi SDK successfully initialized.")
+                                LogController.i("InMobi SDK successfully initialized.")
                             )
                         }
                     )
                 }
             }
         } ?: run {
-            LogController.e("$TAG Failed to initialize InMobi SDK: Missing account ID.")
+            LogController.e("Failed to initialize InMobi SDK: Missing account ID.")
             return Result.failure(HeliumAdException(HeliumErrorCode.PARTNER_SDK_NOT_INITIALIZED))
         }
     }
@@ -142,7 +137,7 @@ class InMobiAdapter : PartnerAdapter {
                 put("gdpr", if (gdprApplies == true) "1" else "0")
             } catch (error: JSONException) {
                 // DO NOTHING
-                LogController.e("$TAG Failed to build GDPR JSONObject with error: ${error.message}")
+                LogController.e("Failed to build GDPR JSONObject with error: ${error.message}")
             }
         }
     }
@@ -259,7 +254,7 @@ class InMobiAdapter : PartnerAdapter {
                             }
 
                             onShowError = {
-                                LogController.d("$TAG onShowError Failed to show InMobi ${partnerAd.request.partnerPlacement} ad.")
+                                LogController.d("onShowError Failed to show InMobi ${partnerAd.request.partnerPlacement} ad.")
                                 continuation.resume(
                                     Result.failure(
                                         HeliumAdException(HeliumErrorCode.PARTNER_ERROR)
@@ -269,11 +264,11 @@ class InMobiAdapter : PartnerAdapter {
                             ad.show()
                         }
                     } else {
-                        LogController.d("$TAG Failed to show InMobi ${partnerAd.request.format.name} ad. Ad is not ready.")
+                        LogController.d("Failed to show InMobi ${partnerAd.request.format.name} ad. Ad is not ready.")
                         Result.failure(HeliumAdException(HeliumErrorCode.PARTNER_ERROR))
                     }
                 } ?: run {
-                    LogController.d("$TAG Failed to show InMobi ${partnerAd.request.format.name} ad. Ad is null.")
+                    LogController.d("Failed to show InMobi ${partnerAd.request.format.name} ad. Ad is null.")
                     Result.failure(HeliumAdException(HeliumErrorCode.PARTNER_ERROR))
                 }
             }
@@ -340,16 +335,16 @@ class InMobiAdapter : PartnerAdapter {
                         }
                     }
                 } ?: run {
-                    LogController.d("$TAG InMobi failed to load banner ad. Size can't be null.")
+                    LogController.d("InMobi failed to load banner ad. Size can't be null.")
                     return (Result.failure(HeliumAdException(HeliumErrorCode.NO_FILL)))
                 }
             } ?: run {
-                LogController.d("$TAG InMobi failed to load banner ad. Activity context is required.")
+                LogController.d("InMobi failed to load banner ad. Activity context is required.")
                 return (Result.failure(HeliumAdException(HeliumErrorCode.NO_FILL)))
             }
         } ?: run {
             LogController.d(
-                "$TAG failed to load InMobi ${request.format.name} ad. Placement is not valid."
+                "Failed to load InMobi ${request.format.name} ad. Placement is not valid."
             )
             return Result.failure(HeliumAdException(HeliumErrorCode.NO_FILL))
         }
@@ -386,7 +381,7 @@ class InMobiAdapter : PartnerAdapter {
                 ad: InMobiBanner,
                 status: InMobiAdRequestStatus
             ) {
-                LogController.d("$TAG failed to load InMobi banner ad. InMobi with status: ${status.message}")
+                LogController.d("Failed to load InMobi banner ad. InMobi with status: ${status.message}")
                 continuation.resume(
                     Result.failure(HeliumAdException(HeliumErrorCode.NO_FILL))
                 )
@@ -439,7 +434,7 @@ class InMobiAdapter : PartnerAdapter {
             }
         } ?: run {
             LogController.w(
-                "$TAG failed to load InMobi ${request.format.name} ad. Placement is not valid."
+                "failed to load InMobi ${request.format.name} ad. Placement is not valid."
             )
             return Result.failure(HeliumAdException(HeliumErrorCode.NO_FILL))
         }
@@ -505,7 +500,7 @@ class InMobiAdapter : PartnerAdapter {
                 status: InMobiAdRequestStatus
             ) {
                 LogController.d(
-                    "$TAG failed to load InMobi ${request.format.name} ad " +
+                    "Failed to load InMobi ${request.format.name} ad " +
                             "with status code: ${status.statusCode} message: ${status.message}"
                 )
                 continuation.resume(
@@ -522,7 +517,7 @@ class InMobiAdapter : PartnerAdapter {
                         rewardMap[rewardKey]
                     } ?: 0
 
-                    LogController.d("$TAG InMobi reward is $reward. For ad: ${request.partnerPlacement}")
+                    LogController.d("InMobi reward is $reward. For ad: ${request.partnerPlacement}")
                     partnerAdListener.onPartnerAdRewarded(
                         PartnerAd(
                             ad,
@@ -551,7 +546,7 @@ class InMobiAdapter : PartnerAdapter {
             bannerAd.destroy()
             Result.success(partnerAd)
         } ?: run {
-            LogController.w("$TAG Failed to destroy InMobi banner ad. Ad is null.")
+            LogController.w("Failed to destroy InMobi banner ad. Ad is null.")
             Result.failure(HeliumAdException(HeliumErrorCode.INTERNAL))
         }
     }
