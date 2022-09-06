@@ -4,7 +4,10 @@ import android.app.Activity
 import android.content.Context
 import com.chartboost.helium.inmobiadapter.BuildConfig.HELIUM_INMOBI_ADAPTER_VERSION
 import com.chartboost.heliumsdk.domain.*
-import com.chartboost.heliumsdk.utils.LogController
+import com.chartboost.heliumsdk.utils.PartnerLogController
+import com.chartboost.heliumsdk.utils.PartnerLogController.PartnerAdapterEvents.*
+import com.chartboost.heliumsdk.utils.PartnerLogController.PartnerAdapterFailureEvents.*
+import com.chartboost.heliumsdk.utils.PartnerLogController.PartnerAdapterSuccessEvents.*
 import com.inmobi.ads.AdMetaInfo
 import com.inmobi.ads.InMobiAdRequestStatus
 import com.inmobi.ads.InMobiBanner
@@ -33,7 +36,7 @@ class InMobiAdapter : PartnerAdapter {
             set(value) {
                 field = value
                 InMobiSdk.setLogLevel(value)
-                LogController.d("InMobi log level set to $value.")
+                PartnerLogController.log(CUSTOM, "InMobi log level set to $value.")
             }
 
         /**
@@ -97,27 +100,27 @@ class InMobiAdapter : PartnerAdapter {
         context: Context,
         partnerConfiguration: PartnerConfiguration
     ): Result<Unit> {
+        PartnerLogController.log(SETUP_STARTED)
+
         partnerConfiguration.credentials[ACCOUNT_ID_KEY]?.let { accountId ->
-            val gdprConsent = gdprApplies?.let {
-                buildGdprJsonObject(it)
-            }
+            val gdprConsent = gdprApplies?.let { buildGdprJsonObject(it) }
 
             return suspendCoroutine { continuation ->
                 InMobiSdk.init(context.applicationContext, accountId, gdprConsent) { error ->
                     continuation.resume(
                         error?.let {
-                            LogController.e("Failed to initialize InMobi SDK with error: ${it.message}")
+                            PartnerLogController.log(SETUP_FAILED, "${it.message}")
                             Result.failure(HeliumAdException(HeliumErrorCode.PARTNER_SDK_NOT_INITIALIZED))
                         } ?: run {
                             Result.success(
-                                LogController.i("InMobi SDK successfully initialized.")
+                                PartnerLogController.log(SETUP_SUCCEEDED)
                             )
                         }
                     )
                 }
             }
         } ?: run {
-            LogController.e("Failed to initialize InMobi SDK: Missing account ID.")
+            PartnerLogController.log(SETUP_FAILED, "Missing account ID.")
             return Result.failure(HeliumAdException(HeliumErrorCode.PARTNER_SDK_NOT_INITIALIZED))
         }
     }
@@ -136,8 +139,10 @@ class InMobiAdapter : PartnerAdapter {
                 // Provide 0 if GDPR is not applicable and 1 if applicable
                 put("gdpr", if (gdprApplies == true) "1" else "0")
             } catch (error: JSONException) {
-                // DO NOTHING
-                LogController.e("Failed to build GDPR JSONObject with error: ${error.message}")
+                PartnerLogController.log(
+                    CUSTOM,
+                    "Failed to build GDPR JSONObject with error: ${error.message}"
+                )
             }
         }
     }
@@ -202,30 +207,39 @@ class InMobiAdapter : PartnerAdapter {
     override suspend fun fetchBidderInformation(
         context: Context,
         request: PreBidRequest
-    ) = emptyMap<String, String>()
+    ): Map<String, String> {
+        PartnerLogController.log(BIDDER_INFO_FETCH_STARTED)
+        PartnerLogController.log(BIDDER_INFO_FETCH_SUCCEEDED)
+        return emptyMap()
+    }
 
     /**
      * Attempt to load a InMobi ad.
      *
      * @param context The current [Context].
-     * @param request An [AdLoadRequest] instance containing relevant data for the current ad load call.
+     * @param request An [PartnerAdLoadRequest] instance containing relevant data for the current ad load call.
      * @param partnerAdListener A [PartnerAdListener] to notify Helium of ad events.
      *
      * @return Result.success(PartnerAd) if the ad was successfully loaded, Result.failure(Exception) otherwise.
      */
     override suspend fun load(
         context: Context,
-        request: AdLoadRequest,
+        request: PartnerAdLoadRequest,
         partnerAdListener: PartnerAdListener
     ): Result<PartnerAd> {
+        PartnerLogController.log(LOAD_STARTED)
+
         return when (request.format) {
             AdFormat.BANNER -> {
                 withContext(Main) {
                     loadBannerAd(context, request, partnerAdListener)
                 }
             }
-            AdFormat.INTERSTITIAL,
-            AdFormat.REWARDED -> loadFullScreenAd(context, request, partnerAdListener)
+            AdFormat.INTERSTITIAL, AdFormat.REWARDED -> loadFullScreenAd(
+                context,
+                request,
+                partnerAdListener
+            )
         }
     }
 
@@ -238,9 +252,12 @@ class InMobiAdapter : PartnerAdapter {
      * @return Result.success(PartnerAd) if the ad was successfully shown, Result.failure(Exception) otherwise.
      */
     override suspend fun show(context: Context, partnerAd: PartnerAd): Result<PartnerAd> {
+        PartnerLogController.log(SHOW_STARTED)
+
         return when (partnerAd.request.format) {
             AdFormat.BANNER -> {
                 // Banner ads do not have a separate "show" mechanism.
+                PartnerLogController.log(SHOW_SUCCEEDED)
                 Result.success(partnerAd)
             }
             AdFormat.INTERSTITIAL, AdFormat.REWARDED -> {
@@ -248,31 +265,30 @@ class InMobiAdapter : PartnerAdapter {
                     if (ad.isReady) {
                         suspendCancellableCoroutine { continuation ->
                             onShowSuccess = {
-                                continuation.resume(
-                                    Result.success(partnerAd)
-                                )
+                                PartnerLogController.log(SHOW_SUCCEEDED)
+                                continuation.resume(Result.success(partnerAd))
                             }
 
                             onShowError = {
-                                LogController.d("onShowError Failed to show InMobi ${partnerAd.request.partnerPlacement} ad.")
+                                PartnerLogController.log(
+                                    SHOW_FAILED,
+                                    "Placement: ${partnerAd.request.partnerPlacement}"
+                                )
                                 continuation.resume(
-                                    Result.failure(
-                                        HeliumAdException(HeliumErrorCode.PARTNER_ERROR)
-                                    )
+                                    Result.failure(HeliumAdException(HeliumErrorCode.PARTNER_ERROR))
                                 )
                             }
                             ad.show()
                         }
                     } else {
-                        LogController.d("Failed to show InMobi ${partnerAd.request.format.name} ad. Ad is not ready.")
+                        PartnerLogController.log(SHOW_FAILED, "Ad is not ready.")
                         Result.failure(HeliumAdException(HeliumErrorCode.PARTNER_ERROR))
                     }
                 } ?: run {
-                    LogController.d("Failed to show InMobi ${partnerAd.request.format.name} ad. Ad is null.")
+                    PartnerLogController.log(SHOW_FAILED, "Ad is null.")
                     Result.failure(HeliumAdException(HeliumErrorCode.PARTNER_ERROR))
                 }
             }
-            else -> Result.failure((HeliumAdException(HeliumErrorCode.PARTNER_ERROR)))
         }
     }
 
@@ -284,11 +300,14 @@ class InMobiAdapter : PartnerAdapter {
      * @return Result.success(PartnerAd) if the ad was successfully discarded, Result.failure(Exception) otherwise.
      */
     override suspend fun invalidate(partnerAd: PartnerAd): Result<PartnerAd> {
+        PartnerLogController.log(INVALIDATE_STARTED)
+
         return when (partnerAd.request.format) {
             AdFormat.BANNER -> destroyBannerAd(partnerAd)
             AdFormat.INTERSTITIAL, AdFormat.REWARDED -> {
                 // InMobi does not have destroy methods for their fullscreen ads.
                 // Remove show result for this partner ad. No longer needed.
+                PartnerLogController.log(INVALIDATE_SUCCEEDED)
                 Result.success(partnerAd)
             }
         }
@@ -298,26 +317,31 @@ class InMobiAdapter : PartnerAdapter {
      * Attempt to load a InMobi banner ad.
      *
      * @param context The current [Context].
-     * @param request An [AdLoadRequest] instance containing relevant data for the current ad load call.
+     * @param request An [PartnerAdLoadRequest] instance containing relevant data for the current ad load call.
      * @param partnerAdListener A [PartnerAdListener] to notify Helium of ad events.
      *
      * @return Result.success(PartnerAd) if the ad was successfully loaded, Result.failure(Exception) otherwise.
      */
     private suspend fun loadBannerAd(
         context: Context,
-        request: AdLoadRequest,
+        request: PartnerAdLoadRequest,
         partnerAdListener: PartnerAdListener
     ): Result<PartnerAd> {
         request.partnerPlacement.toLongOrNull()?.let { placement ->
             // There should be no placement with this value.
-            if (placement == 0L) return Result.failure(HeliumAdException(HeliumErrorCode.NO_FILL))
+            if (placement == 0L) {
+                PartnerLogController.log(LOAD_FAILED)
+                return Result.failure(HeliumAdException(HeliumErrorCode.NO_FILL))
+            }
 
             (context as? Activity)?.let { activity ->
                 request.size?.let { size ->
                     // InMobi silently fails and causes the coroutine from returning a result.
                     // We will check for the banner size and return a failure if the sizes are either 0.
-                    if ((size.width == 0) or (size.height == 0))
+                    if ((size.width == 0) or (size.height == 0)) {
+                        PartnerLogController.log(LOAD_FAILED)
                         return Result.failure(HeliumAdException(HeliumErrorCode.NO_FILL))
+                    }
 
                     return suspendCoroutine { continuation ->
                         // Load an InMobiBanner
@@ -335,17 +359,15 @@ class InMobiAdapter : PartnerAdapter {
                         }
                     }
                 } ?: run {
-                    LogController.d("InMobi failed to load banner ad. Size can't be null.")
+                    PartnerLogController.log(LOAD_FAILED, "Size can't be null.")
                     return (Result.failure(HeliumAdException(HeliumErrorCode.NO_FILL)))
                 }
             } ?: run {
-                LogController.d("InMobi failed to load banner ad. Activity context is required.")
+                PartnerLogController.log(LOAD_FAILED, "Activity context is required.")
                 return (Result.failure(HeliumAdException(HeliumErrorCode.NO_FILL)))
             }
         } ?: run {
-            LogController.d(
-                "Failed to load InMobi ${request.format.name} ad. Placement is not valid."
-            )
+            PartnerLogController.log(LOAD_FAILED, "Placement is not valid.")
             return Result.failure(HeliumAdException(HeliumErrorCode.NO_FILL))
         }
     }
@@ -353,19 +375,20 @@ class InMobiAdapter : PartnerAdapter {
     /**
      * Build a [BannerAdEventListener] listener and return it.
      *
-     * @param request An [AdLoadRequest] instance containing relevant data for the current ad load call.
+     * @param request An [PartnerAdLoadRequest] instance containing relevant data for the current ad load call.
      * @param partnerAdListener A [PartnerAdListener] to notify Helium of ad events.
      * @param continuation A [Continuation] to notify Helium of load success or failure.
      *
      * @return A built [BannerAdEventListener] listener.
      */
     private fun buildBannerAdListener(
-        request: AdLoadRequest,
+        request: PartnerAdLoadRequest,
         partnerAdListener: PartnerAdListener,
         continuation: Continuation<Result<PartnerAd>>
     ): BannerAdEventListener {
         return object : BannerAdEventListener() {
             override fun onAdLoadSucceeded(ad: InMobiBanner, info: AdMetaInfo) {
+                PartnerLogController.log(LOAD_SUCCEEDED)
                 continuation.resume(
                     Result.success(
                         PartnerAd(
@@ -381,10 +404,8 @@ class InMobiAdapter : PartnerAdapter {
                 ad: InMobiBanner,
                 status: InMobiAdRequestStatus
             ) {
-                LogController.d("Failed to load InMobi banner ad. InMobi with status: ${status.message}")
-                continuation.resume(
-                    Result.failure(HeliumAdException(HeliumErrorCode.NO_FILL))
-                )
+                PartnerLogController.log(LOAD_FAILED, status.message)
+                continuation.resume(Result.failure(HeliumAdException(HeliumErrorCode.NO_FILL)))
             }
 
             override fun onAdDisplayed(ad: InMobiBanner) {}
@@ -392,6 +413,7 @@ class InMobiAdapter : PartnerAdapter {
             override fun onAdDismissed(ad: InMobiBanner) {}
 
             override fun onAdClicked(ad: InMobiBanner, map: MutableMap<Any, Any>?) {
+                PartnerLogController.log(DID_CLICK)
                 partnerAdListener.onPartnerAdClicked(
                     PartnerAd(
                         ad = ad,
@@ -407,19 +429,22 @@ class InMobiAdapter : PartnerAdapter {
      * Attempt to load an InMobi fullscreen ad.
      *
      * @param context The current [Context].
-     * @param request An [AdLoadRequest] instance containing data to load the ad with.
+     * @param request An [PartnerAdLoadRequest] instance containing data to load the ad with.
      * @param partnerAdListener A [PartnerAdListener] to notify Helium of ad events.
      *
      * @return Result.success(PartnerAd) if the ad was successfully loaded, Result.failure(Exception) otherwise.
      */
     private suspend fun loadFullScreenAd(
         context: Context,
-        request: AdLoadRequest,
+        request: PartnerAdLoadRequest,
         partnerAdListener: PartnerAdListener
     ): Result<PartnerAd> {
         request.partnerPlacement.toLongOrNull()?.let { placement ->
             // There should be no placement with this value.
-            if (placement == 0L) return Result.failure(HeliumAdException(HeliumErrorCode.NO_FILL))
+            if (placement == 0L) {
+                PartnerLogController.log(LOAD_FAILED)
+                return Result.failure(HeliumAdException(HeliumErrorCode.NO_FILL))
+            }
 
             return suspendCoroutine { continuation ->
                 InMobiInterstitial(
@@ -433,9 +458,7 @@ class InMobiAdapter : PartnerAdapter {
                 ).load()
             }
         } ?: run {
-            LogController.w(
-                "failed to load InMobi ${request.format.name} ad. Placement is not valid."
-            )
+            PartnerLogController.log(LOAD_FAILED, "Placement is not valid.")
             return Result.failure(HeliumAdException(HeliumErrorCode.NO_FILL))
         }
     }
@@ -443,14 +466,14 @@ class InMobiAdapter : PartnerAdapter {
     /**
      * Build a [InterstitialAdEventListener] listener and return it.
      *
-     * @param request An [AdLoadRequest] instance containing relevant data for the current ad load call.
+     * @param request An [PartnerAdLoadRequest] instance containing relevant data for the current ad load call.
      * @param partnerAdListener A [PartnerAdListener] to notify Helium of ad events.
      * @param continuation A [Continuation] to notify Helium of load success or failure.
      *
      * @return A built [InterstitialAdEventListener] listener.
      */
     private fun buildFullScreenAdListener(
-        request: AdLoadRequest,
+        request: PartnerAdLoadRequest,
         partnerAdListener: PartnerAdListener,
         continuation: Continuation<Result<PartnerAd>>
     ): InterstitialAdEventListener {
@@ -464,6 +487,7 @@ class InMobiAdapter : PartnerAdapter {
             }
 
             override fun onAdDismissed(ad: InMobiInterstitial) {
+                PartnerLogController.log(DID_DISMISS)
                 partnerAdListener.onPartnerAdDismissed(
                     PartnerAd(
                         ad = ad,
@@ -474,6 +498,7 @@ class InMobiAdapter : PartnerAdapter {
             }
 
             override fun onAdClicked(ad: InMobiInterstitial, map: MutableMap<Any, Any>?) {
+                PartnerLogController.log(DID_CLICK)
                 partnerAdListener.onPartnerAdClicked(
                     PartnerAd(
                         ad = ad,
@@ -484,6 +509,7 @@ class InMobiAdapter : PartnerAdapter {
             }
 
             override fun onAdLoadSucceeded(ad: InMobiInterstitial, adMetaInfo: AdMetaInfo) {
+                PartnerLogController.log(LOAD_SUCCEEDED)
                 continuation.resume(
                     Result.success(
                         PartnerAd(
@@ -499,9 +525,9 @@ class InMobiAdapter : PartnerAdapter {
                 ad: InMobiInterstitial,
                 status: InMobiAdRequestStatus
             ) {
-                LogController.d(
-                    "Failed to load InMobi ${request.format.name} ad " +
-                            "with status code: ${status.statusCode} message: ${status.message}"
+                PartnerLogController.log(
+                    LOAD_FAILED,
+                    "Status code: ${status.statusCode}. Message: ${status.message}"
                 )
                 continuation.resume(
                     Result.failure(HeliumAdException(HeliumErrorCode.NO_FILL))
@@ -517,7 +543,7 @@ class InMobiAdapter : PartnerAdapter {
                         rewardMap[rewardKey]
                     } ?: 0
 
-                    LogController.d("InMobi reward is $reward. For ad: ${request.partnerPlacement}")
+                    PartnerLogController.log(DID_REWARD)
                     partnerAdListener.onPartnerAdRewarded(
                         PartnerAd(
                             ad,
@@ -544,9 +570,11 @@ class InMobiAdapter : PartnerAdapter {
     private fun destroyBannerAd(partnerAd: PartnerAd): Result<PartnerAd> {
         return (partnerAd.ad as? InMobiBanner)?.let { bannerAd ->
             bannerAd.destroy()
+
+            PartnerLogController.log(INVALIDATE_SUCCEEDED)
             Result.success(partnerAd)
         } ?: run {
-            LogController.w("Failed to destroy InMobi banner ad. Ad is null.")
+            PartnerLogController.log(INVALIDATE_FAILED, "Ad is null.")
             Result.failure(HeliumAdException(HeliumErrorCode.INTERNAL))
         }
     }
