@@ -102,24 +102,25 @@ class InMobiAdapter : PartnerAdapter {
     ): Result<Unit> {
         PartnerLogController.log(SETUP_STARTED)
 
-        partnerConfiguration.credentials[ACCOUNT_ID_KEY]?.let { accountId ->
-            val gdprConsent = gdprApplies?.let { buildGdprJsonObject(it) }
+        partnerConfiguration.credentials.optString(ACCOUNT_ID_KEY).takeIf { it.isNotBlank() }
+            ?.let { accountId ->
+                val gdprConsent = gdprApplies?.let { buildGdprJsonObject(it) }
 
-            return suspendCoroutine { continuation ->
-                InMobiSdk.init(context.applicationContext, accountId, gdprConsent) { error ->
-                    continuation.resume(
-                        error?.let {
-                            PartnerLogController.log(SETUP_FAILED, "${it.message}")
-                            Result.failure(HeliumAdException(HeliumErrorCode.PARTNER_SDK_NOT_INITIALIZED))
-                        } ?: run {
-                            Result.success(
-                                PartnerLogController.log(SETUP_SUCCEEDED)
-                            )
-                        }
-                    )
+                return suspendCoroutine { continuation ->
+                    InMobiSdk.init(context.applicationContext, accountId, gdprConsent) { error ->
+                        continuation.resume(
+                            error?.let {
+                                PartnerLogController.log(SETUP_FAILED, "${it.message}")
+                                Result.failure(HeliumAdException(HeliumErrorCode.PARTNER_SDK_NOT_INITIALIZED))
+                            } ?: run {
+                                Result.success(
+                                    PartnerLogController.log(SETUP_SUCCEEDED)
+                                )
+                            }
+                        )
+                    }
                 }
-            }
-        } ?: run {
+            } ?: run {
             PartnerLogController.log(SETUP_FAILED, "Missing account ID.")
             return Result.failure(HeliumAdException(HeliumErrorCode.PARTNER_SDK_NOT_INITIALIZED))
         }
