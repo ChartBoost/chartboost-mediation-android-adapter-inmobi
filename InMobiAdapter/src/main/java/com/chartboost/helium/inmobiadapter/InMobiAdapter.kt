@@ -102,7 +102,7 @@ class InMobiAdapter : PartnerAdapter {
     ): Result<Unit> {
         PartnerLogController.log(SETUP_STARTED)
 
-        partnerConfiguration.credentials.optString(ACCOUNT_ID_KEY).takeIf { it.isNotBlank() }
+        partnerConfiguration.credentials.optString(ACCOUNT_ID_KEY).trim().takeIf { it.isNotEmpty() }
             ?.let { accountId ->
                 val gdprConsent = gdprApplies?.let { buildGdprJsonObject(it) }
 
