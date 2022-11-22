@@ -423,7 +423,7 @@ class InMobiAdapter : PartnerAdapter {
                 status: InMobiAdRequestStatus
             ) {
                 PartnerLogController.log(LOAD_FAILED, status.message)
-                continuation.resume(Result.failure(HeliumAdException(HeliumErrorCode.NO_FILL)))
+                continuation.resume(Result.failure(HeliumAdException(getHeliumErrorCode(status.statusCode))))
             }
 
             override fun onAdDisplayed(ad: InMobiBanner) {}
@@ -548,7 +548,7 @@ class InMobiAdapter : PartnerAdapter {
                     "Status code: ${status.statusCode}. Message: ${status.message}"
                 )
                 continuation.resume(
-                    Result.failure(HeliumAdException(HeliumErrorCode.NO_FILL))
+                    Result.failure(HeliumAdException(getHeliumErrorCode(status.statusCode)))
                 )
             }
 
@@ -595,5 +595,23 @@ class InMobiAdapter : PartnerAdapter {
             PartnerLogController.log(INVALIDATE_FAILED, "Ad is null.")
             Result.failure(HeliumAdException(HeliumErrorCode.INTERNAL))
         }
+    }
+
+    /**
+     * Convert a given InMobi error code into a [HeliumErrorCode].
+     *
+     * @param error The InMobi error code.
+     *
+     * @return The corresponding [HeliumErrorCode].
+     */
+    private fun getHeliumErrorCode(error: InMobiAdRequestStatus.StatusCode) = when(error) {
+        InMobiAdRequestStatus.StatusCode.INTERNAL_ERROR -> HeliumErrorCode.INTERNAL
+        InMobiAdRequestStatus.StatusCode.NETWORK_UNREACHABLE -> HeliumErrorCode.NO_CONNECTIVITY
+        InMobiAdRequestStatus.StatusCode.NO_FILL, InMobiAdRequestStatus.StatusCode.AD_NO_LONGER_AVAILABLE -> HeliumErrorCode.NO_FILL
+        InMobiAdRequestStatus.StatusCode.REQUEST_TIMED_OUT -> HeliumErrorCode.PARTNER_SDK_TIMEOUT
+        InMobiAdRequestStatus.StatusCode.SERVER_ERROR -> HeliumErrorCode.SERVER_ERROR
+        InMobiAdRequestStatus.StatusCode.INVALID_RESPONSE_IN_LOAD -> HeliumErrorCode.INVALID_BID_PAYLOAD
+        InMobiAdRequestStatus.StatusCode.CONFIGURATION_ERROR -> HeliumErrorCode.INVALID_CONFIG
+        else -> HeliumErrorCode.PARTNER_ERROR
     }
 }
