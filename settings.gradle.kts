@@ -7,6 +7,6 @@ pluginManagement {
 }
 
 rootProject.name = "InMobiAdapter"
-include ':InMobiAdapter'
-include ':android-helium-sdk'
-include ':Helium'
+include(":InMobiAdapter")
+include(":android-helium-sdk")
+include(":Helium")
