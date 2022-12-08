@@ -109,7 +109,7 @@ class InMobiAdapter : PartnerAdapter {
                         continuation.resume(
                             error?.let {
                                 PartnerLogController.log(SETUP_FAILED, "${it.message}")
-                                Result.failure(HeliumAdException(HeliumErrorCode.PARTNER_SDK_NOT_INITIALIZED))
+                                Result.failure(HeliumAdException(HeliumError.HE_INITIALIZATION_FAILURE_UNKNOWN))
                             } ?: run {
                                 Result.success(
                                     PartnerLogController.log(SETUP_SUCCEEDED)
@@ -120,7 +120,7 @@ class InMobiAdapter : PartnerAdapter {
                 }
             } ?: run {
             PartnerLogController.log(SETUP_FAILED, "Missing account ID.")
-            return Result.failure(HeliumAdException(HeliumErrorCode.PARTNER_SDK_NOT_INITIALIZED))
+            return Result.failure(HeliumAdException(HeliumError.HE_INITIALIZATION_FAILURE_INVALID_CREDENTIALS))
         }
     }
 
@@ -293,18 +293,18 @@ class InMobiAdapter : PartnerAdapter {
                                     "Placement: ${partnerAd.request.partnerPlacement}"
                                 )
                                 continuation.resume(
-                                    Result.failure(HeliumAdException(HeliumErrorCode.PARTNER_ERROR))
+                                    Result.failure(HeliumAdException(HeliumError.HE_SHOW_FAILURE_UNKNOWN))
                                 )
                             }
                             ad.show()
                         }
                     } else {
                         PartnerLogController.log(SHOW_FAILED, "Ad is not ready.")
-                        Result.failure(HeliumAdException(HeliumErrorCode.PARTNER_ERROR))
+                        Result.failure(HeliumAdException(HeliumError.HE_SHOW_FAILURE_AD_NOT_READY))
                     }
                 } ?: run {
                     PartnerLogController.log(SHOW_FAILED, "Ad is null.")
-                    Result.failure(HeliumAdException(HeliumErrorCode.PARTNER_ERROR))
+                    Result.failure(HeliumAdException(HeliumError.HE_SHOW_FAILURE_AD_NOT_FOUND))
                 }
             }
         }
@@ -349,7 +349,7 @@ class InMobiAdapter : PartnerAdapter {
             // There should be no placement with this value.
             if (placement == 0L) {
                 PartnerLogController.log(LOAD_FAILED)
-                return Result.failure(HeliumAdException(HeliumErrorCode.NO_FILL))
+                return Result.failure(HeliumAdException(HeliumError.HE_LOAD_FAILURE_INVALID_PARTNER_PLACEMENT))
             }
 
             (context as? Activity)?.let { activity ->
@@ -358,7 +358,7 @@ class InMobiAdapter : PartnerAdapter {
                     // We will check for the banner size and return a failure if the sizes are either 0.
                     if ((size.width == 0) or (size.height == 0)) {
                         PartnerLogController.log(LOAD_FAILED)
-                        return Result.failure(HeliumAdException(HeliumErrorCode.NO_FILL))
+                        return Result.failure(HeliumAdException(HeliumError.HE_LOAD_FAILURE_INVALID_BANNER_SIZE))
                     }
 
                     return suspendCoroutine { continuation ->
@@ -378,15 +378,15 @@ class InMobiAdapter : PartnerAdapter {
                     }
                 } ?: run {
                     PartnerLogController.log(LOAD_FAILED, "Size can't be null.")
-                    return (Result.failure(HeliumAdException(HeliumErrorCode.NO_FILL)))
+                    return (Result.failure(HeliumAdException(HeliumError.HE_LOAD_FAILURE_INVALID_BANNER_SIZE)))
                 }
             } ?: run {
                 PartnerLogController.log(LOAD_FAILED, "Activity context is required.")
-                return (Result.failure(HeliumAdException(HeliumErrorCode.NO_FILL)))
+                return (Result.failure(HeliumAdException(HeliumError.HE_LOAD_FAILURE_ACTIVITY_NOT_FOUND)))
             }
         } ?: run {
             PartnerLogController.log(LOAD_FAILED, "Placement is not valid.")
-            return Result.failure(HeliumAdException(HeliumErrorCode.NO_FILL))
+            return Result.failure(HeliumAdException(HeliumError.HE_LOAD_FAILURE_INVALID_PARTNER_PLACEMENT))
         }
     }
 
@@ -423,7 +423,7 @@ class InMobiAdapter : PartnerAdapter {
                 status: InMobiAdRequestStatus
             ) {
                 PartnerLogController.log(LOAD_FAILED, status.message)
-                continuation.resume(Result.failure(HeliumAdException(getHeliumErrorCode(status.statusCode))))
+                continuation.resume(Result.failure(HeliumAdException(getHeliumError(status.statusCode))))
             }
 
             override fun onAdDisplayed(ad: InMobiBanner) {}
@@ -461,7 +461,7 @@ class InMobiAdapter : PartnerAdapter {
             // There should be no placement with this value.
             if (placement == 0L) {
                 PartnerLogController.log(LOAD_FAILED)
-                return Result.failure(HeliumAdException(HeliumErrorCode.NO_FILL))
+                return Result.failure(HeliumAdException(HeliumError.HE_LOAD_FAILURE_INVALID_PARTNER_PLACEMENT))
             }
 
             return suspendCoroutine { continuation ->
@@ -477,7 +477,7 @@ class InMobiAdapter : PartnerAdapter {
             }
         } ?: run {
             PartnerLogController.log(LOAD_FAILED, "Placement is not valid.")
-            return Result.failure(HeliumAdException(HeliumErrorCode.NO_FILL))
+            return Result.failure(HeliumAdException(HeliumError.HE_LOAD_FAILURE_INVALID_PARTNER_PLACEMENT))
         }
     }
 
@@ -548,7 +548,7 @@ class InMobiAdapter : PartnerAdapter {
                     "Status code: ${status.statusCode}. Message: ${status.message}"
                 )
                 continuation.resume(
-                    Result.failure(HeliumAdException(getHeliumErrorCode(status.statusCode)))
+                    Result.failure(HeliumAdException(getHeliumError(status.statusCode)))
                 )
             }
 
@@ -593,25 +593,24 @@ class InMobiAdapter : PartnerAdapter {
             Result.success(partnerAd)
         } ?: run {
             PartnerLogController.log(INVALIDATE_FAILED, "Ad is null.")
-            Result.failure(HeliumAdException(HeliumErrorCode.INTERNAL))
+            Result.failure(HeliumAdException(HeliumError.HE_INVALIDATE_FAILURE_AD_NOT_FOUND))
         }
     }
 
     /**
-     * Convert a given InMobi error code into a [HeliumErrorCode].
+     * Convert a given InMobi error code into a [HeliumError].
      *
      * @param error The InMobi error code.
      *
-     * @return The corresponding [HeliumErrorCode].
+     * @return The corresponding [HeliumError].
      */
-    private fun getHeliumErrorCode(error: InMobiAdRequestStatus.StatusCode) = when(error) {
-        InMobiAdRequestStatus.StatusCode.INTERNAL_ERROR -> HeliumErrorCode.INTERNAL
-        InMobiAdRequestStatus.StatusCode.NETWORK_UNREACHABLE -> HeliumErrorCode.NO_CONNECTIVITY
-        InMobiAdRequestStatus.StatusCode.NO_FILL, InMobiAdRequestStatus.StatusCode.AD_NO_LONGER_AVAILABLE -> HeliumErrorCode.NO_FILL
-        InMobiAdRequestStatus.StatusCode.REQUEST_TIMED_OUT -> HeliumErrorCode.PARTNER_SDK_TIMEOUT
-        InMobiAdRequestStatus.StatusCode.SERVER_ERROR -> HeliumErrorCode.SERVER_ERROR
-        InMobiAdRequestStatus.StatusCode.INVALID_RESPONSE_IN_LOAD -> HeliumErrorCode.INVALID_BID_PAYLOAD
-        InMobiAdRequestStatus.StatusCode.CONFIGURATION_ERROR -> HeliumErrorCode.INVALID_CONFIG
-        else -> HeliumErrorCode.PARTNER_ERROR
+    private fun getHeliumError(error: InMobiAdRequestStatus.StatusCode) = when(error) {
+        InMobiAdRequestStatus.StatusCode.INTERNAL_ERROR -> HeliumError.HE_INTERNAL_ERROR
+        InMobiAdRequestStatus.StatusCode.NETWORK_UNREACHABLE -> HeliumError.HE_NO_CONNECTIVITY
+        InMobiAdRequestStatus.StatusCode.NO_FILL, InMobiAdRequestStatus.StatusCode.AD_NO_LONGER_AVAILABLE -> HeliumError.HE_LOAD_FAILURE_NO_FILL
+        InMobiAdRequestStatus.StatusCode.REQUEST_TIMED_OUT -> HeliumError.HE_LOAD_FAILURE_TIMEOUT
+        InMobiAdRequestStatus.StatusCode.SERVER_ERROR -> HeliumError.HE_AD_SERVER_ERROR
+        InMobiAdRequestStatus.StatusCode.INVALID_RESPONSE_IN_LOAD -> HeliumError.HE_LOAD_FAILURE_INVALID_BID_RESPONSE
+        else -> HeliumError.HE_PARTNER_ERROR
     }
 }
