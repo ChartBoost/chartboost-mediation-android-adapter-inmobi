@@ -607,7 +607,8 @@ class InMobiAdapter : PartnerAdapter {
     private fun getHeliumError(error: InMobiAdRequestStatus.StatusCode) = when(error) {
         InMobiAdRequestStatus.StatusCode.INTERNAL_ERROR -> HeliumError.HE_INTERNAL_ERROR
         InMobiAdRequestStatus.StatusCode.NETWORK_UNREACHABLE -> HeliumError.HE_NO_CONNECTIVITY
-        InMobiAdRequestStatus.StatusCode.NO_FILL, InMobiAdRequestStatus.StatusCode.AD_NO_LONGER_AVAILABLE -> HeliumError.HE_LOAD_FAILURE_NO_FILL
+        InMobiAdRequestStatus.StatusCode.NO_FILL -> HeliumError.HE_LOAD_FAILURE_NO_FILL
+        InMobiAdRequestStatus.StatusCode.AD_NO_LONGER_AVAILABLE -> HeliumError.HE_SHOW_FAILURE_AD_NOT_FOUND
         InMobiAdRequestStatus.StatusCode.REQUEST_TIMED_OUT -> HeliumError.HE_LOAD_FAILURE_TIMEOUT
         InMobiAdRequestStatus.StatusCode.SERVER_ERROR -> HeliumError.HE_AD_SERVER_ERROR
         InMobiAdRequestStatus.StatusCode.INVALID_RESPONSE_IN_LOAD -> HeliumError.HE_LOAD_FAILURE_INVALID_BID_RESPONSE
