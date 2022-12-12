@@ -147,23 +147,25 @@ class InMobiAdapter : PartnerAdapter {
     }
 
     /**
-     * Save the current GDPR applicability state for later use.
+     * Notify the InMobi SDK of the GDPR applicability and consent status.
      *
      * @param context The current [Context].
-     * @param gdprApplies True if GDPR applies, false otherwise.
+     * @param applies True if GDPR applies, false otherwise.
+     * @param gdprConsentStatus The user's GDPR consent status.
      */
-    override fun setGdprApplies(context: Context, gdprApplies: Boolean) {
-        PartnerLogController.log(if (gdprApplies) GDPR_APPLICABLE else GDPR_NOT_APPLICABLE)
-        this.gdprApplies = gdprApplies
-    }
+    override fun setGdpr(
+        context: Context,
+        applies: Boolean?,
+        gdprConsentStatus: GdprConsentStatus
+    ) {
+        PartnerLogController.log(
+            when (applies) {
+                true -> GDPR_APPLICABLE
+                false -> GDPR_NOT_APPLICABLE
+                else -> GDPR_UNKNOWN
+            }
+        )
 
-    /**
-     * Notify InMobi of user GDPR consent.
-     *
-     * @param context The current [Context].
-     * @param gdprConsentStatus The user's current GDPR consent status.
-     */
-    override fun setGdprConsentStatus(context: Context, gdprConsentStatus: GdprConsentStatus) {
         PartnerLogController.log(
             when (gdprConsentStatus) {
                 GdprConsentStatus.GDPR_CONSENT_UNKNOWN -> GDPR_CONSENT_UNKNOWN
@@ -172,7 +174,9 @@ class InMobiAdapter : PartnerAdapter {
             }
         )
 
-        if (gdprApplies == true) {
+        this.gdprApplies = applies
+
+        if (applies == true) {
             InMobiSdk.setPartnerGDPRConsent(
                 buildGdprJsonObject(GdprConsentStatus.GDPR_CONSENT_GRANTED == gdprConsentStatus)
             )
@@ -604,7 +608,7 @@ class InMobiAdapter : PartnerAdapter {
      *
      * @return The corresponding [HeliumError].
      */
-    private fun getHeliumError(error: InMobiAdRequestStatus.StatusCode) = when(error) {
+    private fun getHeliumError(error: InMobiAdRequestStatus.StatusCode) = when (error) {
         InMobiAdRequestStatus.StatusCode.INTERNAL_ERROR -> HeliumError.HE_INTERNAL_ERROR
         InMobiAdRequestStatus.StatusCode.NETWORK_UNREACHABLE -> HeliumError.HE_NO_CONNECTIVITY
         InMobiAdRequestStatus.StatusCode.NO_FILL -> HeliumError.HE_LOAD_FAILURE_NO_FILL
