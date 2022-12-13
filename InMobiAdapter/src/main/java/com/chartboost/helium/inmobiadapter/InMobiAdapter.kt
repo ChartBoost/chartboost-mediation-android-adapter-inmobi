@@ -571,10 +571,6 @@ class InMobiAdapter : PartnerAdapter {
                             ad,
                             details = emptyMap(),
                             request = request
-                        ),
-                        Reward(
-                            reward as Int,
-                            request.partnerPlacement
                         )
                     )
                 }
