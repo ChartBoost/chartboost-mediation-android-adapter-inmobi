@@ -67,9 +67,14 @@ class InMobiAdapter : PartnerAdapter {
     /**
      * Get the InMobi adapter version.
      *
-     * Note that the version string will be in the format of `Helium.Partner.Partner.Partner.Adapter`,
-     * in which `Helium` is the version of the Helium SDK, `Partner` is the major.minor.patch version
-     * of the partner SDK, and `Adapter` is the version of the adapter.
+     * You may version the adapter using any preferred convention, but it is recommended to apply the
+     * following format if the adapter will be published by Helium:
+     *
+     * Helium.Partner.Adapter
+     *
+     * "Helium" represents the Helium SDK’s major version that is compatible with this adapter. This must be 1 digit.
+     * "Partner" represents the partner SDK’s major.minor.patch.x (where x is optional) version that is compatible with this adapter. This can be 3-4 digits.
+     * "Adapter" represents this adapter’s version (starting with 0), which resets to 0 when the partner SDK’s version changes. This must be 1 digit.
      */
     override val adapterVersion: String
         get() = HELIUM_INMOBI_ADAPTER_VERSION
@@ -128,6 +133,7 @@ class InMobiAdapter : PartnerAdapter {
      * Build a [JSONObject] that will be passed to the InMobi SDK for GDPR during [setUp].
      *
      * @param gdprConsent A Boolean indicating whether GDPR consent is granted or not.
+     *
      * @return a [JSONObject] object as to whether GDPR  .
      */
     private fun buildGdprJsonObject(gdprConsent: Boolean): JSONObject {
@@ -236,7 +242,7 @@ class InMobiAdapter : PartnerAdapter {
     }
 
     /**
-     * Attempt to load a InMobi ad.
+     * Attempt to load an InMobi ad.
      *
      * @param context The current [Context].
      * @param request An [PartnerAdLoadRequest] instance containing relevant data for the current ad load call.
@@ -336,7 +342,7 @@ class InMobiAdapter : PartnerAdapter {
     }
 
     /**
-     * Attempt to load a InMobi banner ad.
+     * Attempt to load an InMobi banner ad.
      *
      * @param context The current [Context].
      * @param request An [PartnerAdLoadRequest] instance containing relevant data for the current ad load call.
@@ -561,10 +567,6 @@ class InMobiAdapter : PartnerAdapter {
                 rewardMap: MutableMap<Any, Any>?
             ) {
                 rewardMap?.let {
-                    val reward = rewardMap.keys.iterator().next().let { rewardKey ->
-                        rewardMap[rewardKey]
-                    } ?: 0
-
                     PartnerLogController.log(DID_REWARD)
                     partnerAdListener.onPartnerAdRewarded(
                         PartnerAd(
