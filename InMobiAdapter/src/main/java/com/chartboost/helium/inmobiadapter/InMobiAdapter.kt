@@ -139,9 +139,7 @@ class InMobiAdapter : PartnerAdapter {
     private fun buildGdprJsonObject(gdprConsent: Boolean): JSONObject {
         return JSONObject().apply {
             try {
-                // Provide correct consent value to sdk which is obtained by User
                 put(InMobiSdk.IM_GDPR_CONSENT_AVAILABLE, gdprConsent)
-                // Provide 0 if GDPR is not applicable and 1 if applicable
                 put("gdpr", if (gdprApplies == true) "1" else "0")
             } catch (error: JSONException) {
                 PartnerLogController.log(
