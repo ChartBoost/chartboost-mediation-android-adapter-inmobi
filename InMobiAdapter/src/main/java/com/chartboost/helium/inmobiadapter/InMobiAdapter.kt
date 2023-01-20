@@ -16,6 +16,9 @@ import com.inmobi.sdk.InMobiSdk
 import kotlinx.coroutines.Dispatchers.Main
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.decodeFromJsonElement
 import org.json.JSONException
 import org.json.JSONObject
 import kotlin.coroutines.Continuation
@@ -105,7 +108,10 @@ class InMobiAdapter : PartnerAdapter {
     ): Result<Unit> {
         PartnerLogController.log(SETUP_STARTED)
 
-        partnerConfiguration.credentials.optString(ACCOUNT_ID_KEY).trim().takeIf { it.isNotEmpty() }
+        Json.decodeFromJsonElement<String>(
+            (partnerConfiguration.credentials as JsonObject).getValue(ACCOUNT_ID_KEY)
+        ).trim()
+            .takeIf { it.isNotEmpty() }
             ?.let { accountId ->
                 val gdprConsent = gdprApplies?.let { buildGdprJsonObject(it) }
 
