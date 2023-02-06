@@ -5,11 +5,10 @@
  * license that can be found in the LICENSE file.
  */
 
-package com.chartboost.helium.inmobiadapter
+package com.chartboost.mediation.inmobiadapter
 
 import android.app.Activity
 import android.content.Context
-import com.chartboost.helium.inmobiadapter.BuildConfig.HELIUM_INMOBI_ADAPTER_VERSION
 import com.chartboost.heliumsdk.domain.*
 import com.chartboost.heliumsdk.utils.PartnerLogController
 import com.chartboost.heliumsdk.utils.PartnerLogController.PartnerAdapterEvents.*
@@ -33,7 +32,7 @@ import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
 
 /**
- * The Helium InMobi SDK adapter.
+ * The Chartboost Mediation InMobi SDK adapter.
  */
 class InMobiAdapter : PartnerAdapter {
     companion object {
@@ -78,16 +77,16 @@ class InMobiAdapter : PartnerAdapter {
      * Get the InMobi adapter version.
      *
      * You may version the adapter using any preferred convention, but it is recommended to apply the
-     * following format if the adapter will be published by Helium:
+     * following format if the adapter will be published by Chartboost Mediation:
      *
-     * Helium.Partner.Adapter
+     * Chartboost Mediation.Partner.Adapter
      *
-     * "Helium" represents the Helium SDK’s major version that is compatible with this adapter. This must be 1 digit.
+     * "Chartboost Mediation" represents the Chartboost Mediation SDK’s major version that is compatible with this adapter. This must be 1 digit.
      * "Partner" represents the partner SDK’s major.minor.patch.x (where x is optional) version that is compatible with this adapter. This can be 3-4 digits.
      * "Adapter" represents this adapter’s version (starting with 0), which resets to 0 when the partner SDK’s version changes. This must be 1 digit.
      */
     override val adapterVersion: String
-        get() = HELIUM_INMOBI_ADAPTER_VERSION
+        get() = BuildConfig.CHARTBOOST_MEDIATION_INMOBI_ADAPTER_VERSION
 
     /**
      * Get the partner name for internal uses.
@@ -127,7 +126,7 @@ class InMobiAdapter : PartnerAdapter {
                         continuation.resume(
                             error?.let {
                                 PartnerLogController.log(SETUP_FAILED, "${it.message}")
-                                Result.failure(HeliumAdException(HeliumError.HE_INITIALIZATION_FAILURE_UNKNOWN))
+                                Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_INITIALIZATION_FAILURE_UNKNOWN))
                             } ?: run {
                                 Result.success(
                                     PartnerLogController.log(SETUP_SUCCEEDED)
@@ -138,7 +137,7 @@ class InMobiAdapter : PartnerAdapter {
                 }
             } ?: run {
             PartnerLogController.log(SETUP_FAILED, "Missing account ID.")
-            return Result.failure(HeliumAdException(HeliumError.HE_INITIALIZATION_FAILURE_INVALID_CREDENTIALS))
+            return Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_INITIALIZATION_FAILURE_INVALID_CREDENTIALS))
         }
     }
 
@@ -257,7 +256,7 @@ class InMobiAdapter : PartnerAdapter {
      *
      * @param context The current [Context].
      * @param request An [PartnerAdLoadRequest] instance containing relevant data for the current ad load call.
-     * @param partnerAdListener A [PartnerAdListener] to notify Helium of ad events.
+     * @param partnerAdListener A [PartnerAdListener] to notify Chartboost Mediation of ad events.
      *
      * @return Result.success(PartnerAd) if the ad was successfully loaded, Result.failure(Exception) otherwise.
      */
@@ -314,18 +313,18 @@ class InMobiAdapter : PartnerAdapter {
                                     "Placement: ${partnerAd.request.partnerPlacement}"
                                 )
                                 continuation.resume(
-                                    Result.failure(HeliumAdException(HeliumError.HE_SHOW_FAILURE_UNKNOWN))
+                                    Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_SHOW_FAILURE_UNKNOWN))
                                 )
                             }
                             ad.show()
                         }
                     } else {
                         PartnerLogController.log(SHOW_FAILED, "Ad is not ready.")
-                        Result.failure(HeliumAdException(HeliumError.HE_SHOW_FAILURE_AD_NOT_READY))
+                        Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_SHOW_FAILURE_AD_NOT_READY))
                     }
                 } ?: run {
                     PartnerLogController.log(SHOW_FAILED, "Ad is null.")
-                    Result.failure(HeliumAdException(HeliumError.HE_SHOW_FAILURE_AD_NOT_FOUND))
+                    Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_SHOW_FAILURE_AD_NOT_FOUND))
                 }
             }
         }
@@ -357,7 +356,7 @@ class InMobiAdapter : PartnerAdapter {
      *
      * @param context The current [Context].
      * @param request An [PartnerAdLoadRequest] instance containing relevant data for the current ad load call.
-     * @param partnerAdListener A [PartnerAdListener] to notify Helium of ad events.
+     * @param partnerAdListener A [PartnerAdListener] to notify Chartboost Mediation of ad events.
      *
      * @return Result.success(PartnerAd) if the ad was successfully loaded, Result.failure(Exception) otherwise.
      */
@@ -370,7 +369,7 @@ class InMobiAdapter : PartnerAdapter {
             // There should be no placement with this value.
             if (placement == 0L) {
                 PartnerLogController.log(LOAD_FAILED)
-                return Result.failure(HeliumAdException(HeliumError.HE_LOAD_FAILURE_INVALID_PARTNER_PLACEMENT))
+                return Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_LOAD_FAILURE_INVALID_PARTNER_PLACEMENT))
             }
 
             (context as? Activity)?.let { activity ->
@@ -379,7 +378,7 @@ class InMobiAdapter : PartnerAdapter {
                     // We will check for the banner size and return a failure if the sizes are either 0.
                     if ((size.width == 0) or (size.height == 0)) {
                         PartnerLogController.log(LOAD_FAILED)
-                        return Result.failure(HeliumAdException(HeliumError.HE_LOAD_FAILURE_INVALID_BANNER_SIZE))
+                        return Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_LOAD_FAILURE_INVALID_BANNER_SIZE))
                     }
 
                     return suspendCoroutine { continuation ->
@@ -399,15 +398,15 @@ class InMobiAdapter : PartnerAdapter {
                     }
                 } ?: run {
                     PartnerLogController.log(LOAD_FAILED, "Size can't be null.")
-                    return (Result.failure(HeliumAdException(HeliumError.HE_LOAD_FAILURE_INVALID_BANNER_SIZE)))
+                    return (Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_LOAD_FAILURE_INVALID_BANNER_SIZE)))
                 }
             } ?: run {
                 PartnerLogController.log(LOAD_FAILED, "Activity context is required.")
-                return (Result.failure(HeliumAdException(HeliumError.HE_LOAD_FAILURE_ACTIVITY_NOT_FOUND)))
+                return (Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_LOAD_FAILURE_ACTIVITY_NOT_FOUND)))
             }
         } ?: run {
             PartnerLogController.log(LOAD_FAILED, "Placement is not valid.")
-            return Result.failure(HeliumAdException(HeliumError.HE_LOAD_FAILURE_INVALID_PARTNER_PLACEMENT))
+            return Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_LOAD_FAILURE_INVALID_PARTNER_PLACEMENT))
         }
     }
 
@@ -415,8 +414,8 @@ class InMobiAdapter : PartnerAdapter {
      * Build a [BannerAdEventListener] listener and return it.
      *
      * @param request An [PartnerAdLoadRequest] instance containing relevant data for the current ad load call.
-     * @param partnerAdListener A [PartnerAdListener] to notify Helium of ad events.
-     * @param continuation A [Continuation] to notify Helium of load success or failure.
+     * @param partnerAdListener A [PartnerAdListener] to notify Chartboost Mediation of ad events.
+     * @param continuation A [Continuation] to notify Chartboost Mediation of load success or failure.
      *
      * @return A built [BannerAdEventListener] listener.
      */
@@ -444,7 +443,7 @@ class InMobiAdapter : PartnerAdapter {
                 status: InMobiAdRequestStatus
             ) {
                 PartnerLogController.log(LOAD_FAILED, status.message)
-                continuation.resume(Result.failure(HeliumAdException(getHeliumError(status.statusCode))))
+                continuation.resume(Result.failure(ChartboostMediationAdException(getChartboostMediationError(status.statusCode))))
             }
 
             override fun onAdDisplayed(ad: InMobiBanner) {}
@@ -469,7 +468,7 @@ class InMobiAdapter : PartnerAdapter {
      *
      * @param context The current [Context].
      * @param request An [PartnerAdLoadRequest] instance containing data to load the ad with.
-     * @param partnerAdListener A [PartnerAdListener] to notify Helium of ad events.
+     * @param partnerAdListener A [PartnerAdListener] to notify Chartboost Mediation of ad events.
      *
      * @return Result.success(PartnerAd) if the ad was successfully loaded, Result.failure(Exception) otherwise.
      */
@@ -482,7 +481,7 @@ class InMobiAdapter : PartnerAdapter {
             // There should be no placement with this value.
             if (placement == 0L) {
                 PartnerLogController.log(LOAD_FAILED)
-                return Result.failure(HeliumAdException(HeliumError.HE_LOAD_FAILURE_INVALID_PARTNER_PLACEMENT))
+                return Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_LOAD_FAILURE_INVALID_PARTNER_PLACEMENT))
             }
 
             return suspendCoroutine { continuation ->
@@ -498,7 +497,7 @@ class InMobiAdapter : PartnerAdapter {
             }
         } ?: run {
             PartnerLogController.log(LOAD_FAILED, "Placement is not valid.")
-            return Result.failure(HeliumAdException(HeliumError.HE_LOAD_FAILURE_INVALID_PARTNER_PLACEMENT))
+            return Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_LOAD_FAILURE_INVALID_PARTNER_PLACEMENT))
         }
     }
 
@@ -506,8 +505,8 @@ class InMobiAdapter : PartnerAdapter {
      * Build a [InterstitialAdEventListener] listener and return it.
      *
      * @param request An [PartnerAdLoadRequest] instance containing relevant data for the current ad load call.
-     * @param partnerAdListener A [PartnerAdListener] to notify Helium of ad events.
-     * @param continuation A [Continuation] to notify Helium of load success or failure.
+     * @param partnerAdListener A [PartnerAdListener] to notify Chartboost Mediation of ad events.
+     * @param continuation A [Continuation] to notify Chartboost Mediation of load success or failure.
      *
      * @return A built [InterstitialAdEventListener] listener.
      */
@@ -569,7 +568,7 @@ class InMobiAdapter : PartnerAdapter {
                     "Status code: ${status.statusCode}. Message: ${status.message}"
                 )
                 continuation.resume(
-                    Result.failure(HeliumAdException(getHeliumError(status.statusCode)))
+                    Result.failure(ChartboostMediationAdException(getChartboostMediationError(status.statusCode)))
                 )
             }
 
@@ -606,25 +605,25 @@ class InMobiAdapter : PartnerAdapter {
             Result.success(partnerAd)
         } ?: run {
             PartnerLogController.log(INVALIDATE_FAILED, "Ad is null.")
-            Result.failure(HeliumAdException(HeliumError.HE_INVALIDATE_FAILURE_AD_NOT_FOUND))
+            Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_INVALIDATE_FAILURE_AD_NOT_FOUND))
         }
     }
 
     /**
-     * Convert a given InMobi error code into a [HeliumError].
+     * Convert a given InMobi error code into a [ChartboostMediationError].
      *
      * @param error The InMobi error code.
      *
-     * @return The corresponding [HeliumError].
+     * @return The corresponding [ChartboostMediationError].
      */
-    private fun getHeliumError(error: InMobiAdRequestStatus.StatusCode) = when (error) {
-        InMobiAdRequestStatus.StatusCode.INTERNAL_ERROR -> HeliumError.HE_INTERNAL_ERROR
-        InMobiAdRequestStatus.StatusCode.NETWORK_UNREACHABLE -> HeliumError.HE_NO_CONNECTIVITY
-        InMobiAdRequestStatus.StatusCode.NO_FILL -> HeliumError.HE_LOAD_FAILURE_NO_FILL
-        InMobiAdRequestStatus.StatusCode.AD_NO_LONGER_AVAILABLE -> HeliumError.HE_SHOW_FAILURE_AD_NOT_FOUND
-        InMobiAdRequestStatus.StatusCode.REQUEST_TIMED_OUT -> HeliumError.HE_LOAD_FAILURE_TIMEOUT
-        InMobiAdRequestStatus.StatusCode.SERVER_ERROR -> HeliumError.HE_AD_SERVER_ERROR
-        InMobiAdRequestStatus.StatusCode.INVALID_RESPONSE_IN_LOAD -> HeliumError.HE_LOAD_FAILURE_INVALID_BID_RESPONSE
-        else -> HeliumError.HE_PARTNER_ERROR
+    private fun getChartboostMediationError(error: InMobiAdRequestStatus.StatusCode) = when (error) {
+        InMobiAdRequestStatus.StatusCode.INTERNAL_ERROR -> ChartboostMediationError.CM_INTERNAL_ERROR
+        InMobiAdRequestStatus.StatusCode.NETWORK_UNREACHABLE -> ChartboostMediationError.CM_NO_CONNECTIVITY
+        InMobiAdRequestStatus.StatusCode.NO_FILL -> ChartboostMediationError.CM_LOAD_FAILURE_NO_FILL
+        InMobiAdRequestStatus.StatusCode.AD_NO_LONGER_AVAILABLE -> ChartboostMediationError.CM_SHOW_FAILURE_AD_NOT_FOUND
+        InMobiAdRequestStatus.StatusCode.REQUEST_TIMED_OUT -> ChartboostMediationError.CM_LOAD_FAILURE_TIMEOUT
+        InMobiAdRequestStatus.StatusCode.SERVER_ERROR -> ChartboostMediationError.CM_AD_SERVER_ERROR
+        InMobiAdRequestStatus.StatusCode.INVALID_RESPONSE_IN_LOAD -> ChartboostMediationError.CM_LOAD_FAILURE_INVALID_BID_RESPONSE
+        else -> ChartboostMediationError.CM_PARTNER_ERROR
     }
 }
