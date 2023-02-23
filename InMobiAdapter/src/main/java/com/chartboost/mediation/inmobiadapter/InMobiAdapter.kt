@@ -278,6 +278,10 @@ class InMobiAdapter : PartnerAdapter {
                 request,
                 partnerAdListener
             )
+            AdFormat.REWARDED_INTERSTITIAL -> {
+                PartnerLogController.log(LOAD_FAILED)
+                Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_LOAD_FAILURE_UNSUPPORTED_AD_FORMAT))
+            }
         }
     }
 
@@ -327,6 +331,10 @@ class InMobiAdapter : PartnerAdapter {
                     Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_SHOW_FAILURE_AD_NOT_FOUND))
                 }
             }
+            AdFormat.REWARDED_INTERSTITIAL -> {
+                PartnerLogController.log(LOAD_FAILED)
+                Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_LOAD_FAILURE_UNSUPPORTED_AD_FORMAT))
+            }
         }
     }
 
@@ -347,6 +355,10 @@ class InMobiAdapter : PartnerAdapter {
                 // Remove show result for this partner ad. No longer needed.
                 PartnerLogController.log(INVALIDATE_SUCCEEDED)
                 Result.success(partnerAd)
+            }
+            AdFormat.REWARDED_INTERSTITIAL -> {
+                PartnerLogController.log(LOAD_FAILED)
+                Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_LOAD_FAILURE_UNSUPPORTED_AD_FORMAT))
             }
         }
     }
