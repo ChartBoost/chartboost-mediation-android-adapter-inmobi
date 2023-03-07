@@ -460,6 +460,17 @@ class InMobiAdapter : PartnerAdapter {
                     )
                 )
             }
+
+            override fun onAdImpression(ad: InMobiBanner) {
+                PartnerLogController.log(DID_TRACK_IMPRESSION)
+                partnerAdListener.onPartnerAdImpression(
+                    PartnerAd(
+                        ad = ad,
+                        details = emptyMap(),
+                        request = request
+                    )
+                )
+            }
         }
     }
 
@@ -580,12 +591,23 @@ class InMobiAdapter : PartnerAdapter {
                     PartnerLogController.log(DID_REWARD)
                     partnerAdListener.onPartnerAdRewarded(
                         PartnerAd(
-                            ad,
+                            ad = ad,
                             details = emptyMap(),
                             request = request
                         )
                     )
                 }
+            }
+
+            override fun onAdImpression(ad: InMobiInterstitial) {
+                PartnerLogController.log(DID_TRACK_IMPRESSION)
+                partnerAdListener.onPartnerAdImpression(
+                    PartnerAd(
+                        ad = ad,
+                        details = emptyMap(),
+                        request = request
+                    )
+                )
             }
         }
     }
