@@ -278,6 +278,10 @@ class InMobiAdapter : PartnerAdapter {
                 request,
                 partnerAdListener
             )
+            else -> {
+                PartnerLogController.log(LOAD_FAILED)
+                Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_LOAD_FAILURE_UNSUPPORTED_AD_FORMAT))
+            }
         }
     }
 
@@ -327,6 +331,10 @@ class InMobiAdapter : PartnerAdapter {
                     Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_SHOW_FAILURE_AD_NOT_FOUND))
                 }
             }
+            else -> {
+                PartnerLogController.log(SHOW_FAILED)
+                Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_SHOW_FAILURE_UNSUPPORTED_AD_FORMAT))
+            }
         }
     }
 
@@ -342,7 +350,7 @@ class InMobiAdapter : PartnerAdapter {
 
         return when (partnerAd.request.format) {
             AdFormat.BANNER -> destroyBannerAd(partnerAd)
-            AdFormat.INTERSTITIAL, AdFormat.REWARDED -> {
+            else -> {
                 // InMobi does not have destroy methods for their fullscreen ads.
                 // Remove show result for this partner ad. No longer needed.
                 PartnerLogController.log(INVALIDATE_SUCCEEDED)
