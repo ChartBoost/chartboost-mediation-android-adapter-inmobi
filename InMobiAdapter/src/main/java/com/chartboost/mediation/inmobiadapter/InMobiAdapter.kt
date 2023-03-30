@@ -350,7 +350,7 @@ class InMobiAdapter : PartnerAdapter {
 
         return when (partnerAd.request.format) {
             AdFormat.BANNER -> destroyBannerAd(partnerAd)
-            AdFormat.INTERSTITIAL, AdFormat.REWARDED -> {
+            else -> {
                 // InMobi does not have destroy methods for their fullscreen ads.
                 // Remove show result for this partner ad. No longer needed.
                 PartnerLogController.log(INVALIDATE_SUCCEEDED)
@@ -465,6 +465,17 @@ class InMobiAdapter : PartnerAdapter {
             override fun onAdClicked(ad: InMobiBanner, map: MutableMap<Any, Any>?) {
                 PartnerLogController.log(DID_CLICK)
                 partnerAdListener.onPartnerAdClicked(
+                    PartnerAd(
+                        ad = ad,
+                        details = emptyMap(),
+                        request = request
+                    )
+                )
+            }
+
+            override fun onAdImpression(ad: InMobiBanner) {
+                PartnerLogController.log(DID_TRACK_IMPRESSION)
+                partnerAdListener.onPartnerAdImpression(
                     PartnerAd(
                         ad = ad,
                         details = emptyMap(),
@@ -592,12 +603,23 @@ class InMobiAdapter : PartnerAdapter {
                     PartnerLogController.log(DID_REWARD)
                     partnerAdListener.onPartnerAdRewarded(
                         PartnerAd(
-                            ad,
+                            ad = ad,
                             details = emptyMap(),
                             request = request
                         )
                     )
                 }
+            }
+
+            override fun onAdImpression(ad: InMobiInterstitial) {
+                PartnerLogController.log(DID_TRACK_IMPRESSION)
+                partnerAdListener.onPartnerAdImpression(
+                    PartnerAd(
+                        ad = ad,
+                        details = emptyMap(),
+                        request = request
+                    )
+                )
             }
         }
     }
