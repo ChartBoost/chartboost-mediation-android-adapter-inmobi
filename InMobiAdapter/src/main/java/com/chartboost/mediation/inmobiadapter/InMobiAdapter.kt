@@ -356,10 +356,6 @@ class InMobiAdapter : PartnerAdapter {
                 PartnerLogController.log(INVALIDATE_SUCCEEDED)
                 Result.success(partnerAd)
             }
-            else -> {
-                PartnerLogController.log(INVALIDATE_FAILED)
-                Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_INVALIDATE_UNSUPPORTED_AD_FORMAT))
-            }
         }
     }
 
