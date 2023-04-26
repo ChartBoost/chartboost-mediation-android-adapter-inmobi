@@ -28,10 +28,8 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.decodeFromJsonElement
 import org.json.JSONException
 import org.json.JSONObject
-import java.lang.Error
 import kotlin.coroutines.Continuation
 import kotlin.coroutines.resume
-import kotlin.coroutines.suspendCoroutine
 
 /**
  * The Chartboost Mediation InMobi SDK adapter.
@@ -68,6 +66,16 @@ class InMobiAdapter : PartnerAdapter {
      * Indicate whether GDPR currently applies to the user.
      */
     private var gdprApplies: Boolean? = null
+
+    /**
+     * Keep a hard [InterstitialAdEventListener] reference.
+     */
+    private var inMobiInterstitialAdEventListener: InterstitialAdEventListener? = null
+
+    /**
+     * Keep a hard [BannerAdEventListener] reference.
+     */
+    private var inMobiBannerAdEventListener: BannerAdEventListener? = null
 
     /**
      * Get the InMobi SDK version.
@@ -123,7 +131,7 @@ class InMobiAdapter : PartnerAdapter {
             ?.let { accountId ->
                 val gdprConsent = gdprApplies?.let { buildGdprJsonObject(it) }
 
-                return suspendCoroutine { continuation ->
+                return suspendCancellableCoroutine { continuation ->
                     InMobiSdk.init(
                         context = context.applicationContext,
                         accountId = accountId,
@@ -362,6 +370,7 @@ class InMobiAdapter : PartnerAdapter {
             else -> {
                 // InMobi does not have destroy methods for their fullscreen ads.
                 // Remove show result for this partner ad. No longer needed.
+                inMobiInterstitialAdEventListener = null
                 PartnerLogController.log(INVALIDATE_SUCCEEDED)
                 Result.success(partnerAd)
             }
@@ -398,20 +407,37 @@ class InMobiAdapter : PartnerAdapter {
                         return Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_LOAD_FAILURE_INVALID_BANNER_SIZE))
                     }
 
-                    return suspendCoroutine { continuation ->
-                        // Load an InMobiBanner
-                        InMobiBanner(activity, placement).apply {
-                            setEnableAutoRefresh(false)
-                            setBannerSize(size.width, size.height)
-                            setListener(
-                                buildBannerAdListener(
-                                    request = request,
-                                    partnerAdListener = partnerAdListener,
-                                    continuation = continuation
+                    return suspendCancellableCoroutine { continuation ->
+
+                        // Build a banner ad listener and assign it to the hard reference.
+                        inMobiBannerAdEventListener = buildBannerAdListener(
+                            request = request,
+                            partnerAdListener = partnerAdListener,
+                            continuation = continuation
+                        )
+
+                        inMobiBannerAdEventListener?.let {
+                            // Load an InMobiBanner
+                            InMobiBanner(activity, placement).apply {
+                                setEnableAutoRefresh(false)
+                                setBannerSize(size.width, size.height)
+                                setListener(it)
+                                load()
+                            }
+                        } ?: run {
+                            PartnerLogController.log(
+                                LOAD_FAILED,
+                                "inMobi BannerAdEventListener is null."
+                            )
+                            continuation.resumeWith(
+                                Result.failure(
+                                    ChartboostMediationAdException(
+                                        ChartboostMediationError.CM_LOAD_FAILURE_UNKNOWN
+                                    )
                                 )
                             )
-                            load()
                         }
+
                     }
                 } ?: run {
                     PartnerLogController.log(LOAD_FAILED, "Size can't be null.")
@@ -460,6 +486,7 @@ class InMobiAdapter : PartnerAdapter {
                 status: InMobiAdRequestStatus
             ) {
                 PartnerLogController.log(LOAD_FAILED, status.message ?: "")
+                inMobiBannerAdEventListener = null
                 continuation.resume(Result.failure(ChartboostMediationAdException(getChartboostMediationError(status.statusCode))))
             }
 
@@ -512,16 +539,35 @@ class InMobiAdapter : PartnerAdapter {
                 return Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_LOAD_FAILURE_INVALID_PARTNER_PLACEMENT))
             }
 
-            return suspendCoroutine { continuation ->
-                InMobiInterstitial(
-                    context,
-                    placement,
-                    buildFullScreenAdListener(
-                        request = request,
-                        partnerAdListener = partnerAdListener,
-                        continuation = continuation
+            return suspendCancellableCoroutine { continuation ->
+
+                // Build an interstitial ad listener and assign it to the hard reference.
+                inMobiInterstitialAdEventListener = buildFullScreenAdListener(
+                    request = request,
+                    partnerAdListener = partnerAdListener,
+                    continuation = continuation
+                )
+
+                inMobiInterstitialAdEventListener?.let {
+                    InMobiInterstitial(
+                        context,
+                        placement,
+                        it
+                    ).load()
+
+                } ?: run {
+                    PartnerLogController.log(
+                        LOAD_FAILED,
+                        "inMobi InterstitialAdEventListener is null."
                     )
-                ).load()
+                    continuation.resumeWith(
+                        Result.failure(
+                            ChartboostMediationAdException(
+                                ChartboostMediationError.CM_LOAD_FAILURE_UNKNOWN
+                            )
+                        )
+                    )
+                }
             }
         } ?: run {
             PartnerLogController.log(LOAD_FAILED, "Placement is not valid.")
@@ -550,6 +596,7 @@ class InMobiAdapter : PartnerAdapter {
 
             override fun onAdDisplayFailed(ad: InMobiInterstitial) {
                 onShowError()
+                inMobiInterstitialAdEventListener = null
             }
 
             override fun onAdDismissed(ad: InMobiInterstitial) {
@@ -561,6 +608,7 @@ class InMobiAdapter : PartnerAdapter {
                         request = request
                     ), null
                 )
+                inMobiInterstitialAdEventListener = null
             }
 
             override fun onAdClicked(ad: InMobiInterstitial, map: MutableMap<Any, Any>?) {
@@ -595,6 +643,7 @@ class InMobiAdapter : PartnerAdapter {
                     LOAD_FAILED,
                     "Status code: ${status.statusCode}. Message: ${status.message}"
                 )
+                inMobiInterstitialAdEventListener = null
                 continuation.resume(
                     Result.failure(ChartboostMediationAdException(getChartboostMediationError(status.statusCode)))
                 )
@@ -639,6 +688,7 @@ class InMobiAdapter : PartnerAdapter {
     private fun destroyBannerAd(partnerAd: PartnerAd): Result<PartnerAd> {
         return (partnerAd.ad as? InMobiBanner)?.let { bannerAd ->
             bannerAd.destroy()
+            inMobiBannerAdEventListener = null
 
             PartnerLogController.log(INVALIDATE_SUCCEEDED)
             Result.success(partnerAd)
