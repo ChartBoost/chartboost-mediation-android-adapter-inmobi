@@ -19,7 +19,6 @@ import com.inmobi.ads.InMobiInterstitial
 import com.inmobi.ads.listeners.BannerAdEventListener
 import com.inmobi.ads.listeners.InterstitialAdEventListener
 import com.inmobi.sdk.InMobiSdk
-import com.inmobi.sdk.SdkInitializationListener
 import kotlinx.coroutines.Dispatchers.Main
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
@@ -28,7 +27,6 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.decodeFromJsonElement
 import org.json.JSONException
 import org.json.JSONObject
-import java.lang.Error
 import kotlin.coroutines.Continuation
 import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
@@ -124,25 +122,18 @@ class InMobiAdapter : PartnerAdapter {
                 val gdprConsent = gdprApplies?.let { buildGdprJsonObject(it) }
 
                 return suspendCoroutine { continuation ->
-                    InMobiSdk.init(
-                        context = context.applicationContext,
-                        accountId = accountId,
-                        consentObject = gdprConsent,
-                        sdkInitializationListener = object : SdkInitializationListener {
-                            override fun onInitializationComplete(error: Error?) {
-                                continuation.resume(
-                                    error?.let {
-                                        PartnerLogController.log(SETUP_FAILED, "${it.message}")
-                                        Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_INITIALIZATION_FAILURE_UNKNOWN))
-                                    } ?: run {
-                                        Result.success(
-                                            PartnerLogController.log(SETUP_SUCCEEDED)
-                                        )
-                                    }
+                    InMobiSdk.init(context.applicationContext, accountId, gdprConsent) { error ->
+                        continuation.resume(
+                            error?.let {
+                                PartnerLogController.log(SETUP_FAILED, "${it.message}")
+                                Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_INITIALIZATION_FAILURE_UNKNOWN))
+                            } ?: run {
+                                Result.success(
+                                    PartnerLogController.log(SETUP_SUCCEEDED)
                                 )
                             }
-                        }
-                    )
+                        )
+                    }
                 }
             } ?: run {
             PartnerLogController.log(SETUP_FAILED, "Missing account ID.")
@@ -313,7 +304,7 @@ class InMobiAdapter : PartnerAdapter {
             }
             AdFormat.INTERSTITIAL, AdFormat.REWARDED -> {
                 (partnerAd.ad as? InMobiInterstitial)?.let { ad ->
-                    if (ad.isReady()) {
+                    if (ad.isReady) {
                         suspendCancellableCoroutine { continuation ->
                             onShowSuccess = {
                                 PartnerLogController.log(SHOW_SUCCEEDED)
@@ -459,7 +450,7 @@ class InMobiAdapter : PartnerAdapter {
                 ad: InMobiBanner,
                 status: InMobiAdRequestStatus
             ) {
-                PartnerLogController.log(LOAD_FAILED, status.message ?: "")
+                PartnerLogController.log(LOAD_FAILED, status.message)
                 continuation.resume(Result.failure(ChartboostMediationAdException(getChartboostMediationError(status.statusCode))))
             }
 
