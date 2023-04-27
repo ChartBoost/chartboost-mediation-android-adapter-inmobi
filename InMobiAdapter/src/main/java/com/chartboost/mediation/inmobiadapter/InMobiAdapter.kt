@@ -68,16 +68,6 @@ class InMobiAdapter : PartnerAdapter {
     private var gdprApplies: Boolean? = null
 
     /**
-     * Keep a hard InterstitialAdEventListener reference.
-     */
-    private var inMobiInterstitialAdEventListener: InterstitialAdEventListener? = null
-
-    /**
-     * Keep a hard BannerAdEventListener reference.
-     */
-    private var inMobiBannerAdEventListener: BannerAdEventListener? = null
-
-    /**
      * A map of InterstitialAdEventListener keyed by a request identifier.
      */
     private val inMobiInterstitialListeners = mutableMapOf<String, InterstitialAdEventListener>()
@@ -145,6 +135,7 @@ class InMobiAdapter : PartnerAdapter {
                 inMobiBannerAdListeners.clear()
 
                 return suspendCancellableCoroutine { continuation ->
+                    logLevel = InMobiSdk.LogLevel.DEBUG
                     InMobiSdk.init(
                         context = context.applicationContext,
                         accountId = accountId,
@@ -383,7 +374,7 @@ class InMobiAdapter : PartnerAdapter {
             else -> {
                 // InMobi does not have destroy methods for their fullscreen ads.
                 // Remove show result for this partner ad. No longer needed.
-                inMobiInterstitialAdEventListener = null
+                inMobiInterstitialListeners.remove(partnerAd.request.identifier)
                 PartnerLogController.log(INVALIDATE_SUCCEEDED)
                 Result.success(partnerAd)
             }
@@ -428,9 +419,7 @@ class InMobiAdapter : PartnerAdapter {
                             continuation = continuation
                         )
 
-                        inMobiBannerAdEventListener = inMobiBannerAdListeners.remove(request.identifier)
-
-                        inMobiBannerAdEventListener?.let {
+                        inMobiBannerAdListeners.remove(request.identifier)?.let {
                             // Load an InMobiBanner
                             InMobiBanner(activity, placement).apply {
                                 setEnableAutoRefresh(false)
@@ -500,7 +489,7 @@ class InMobiAdapter : PartnerAdapter {
                 status: InMobiAdRequestStatus
             ) {
                 PartnerLogController.log(LOAD_FAILED, status.message ?: "")
-                inMobiBannerAdEventListener = null
+                inMobiBannerAdListeners.remove(request.identifier)
                 continuation.resume(Result.failure(ChartboostMediationAdException(getChartboostMediationError(status.statusCode))))
             }
 
@@ -561,10 +550,8 @@ class InMobiAdapter : PartnerAdapter {
                     continuation = continuation
                 )
 
-                // Get an already built interstitial ad listener and assign it to the hard reference.
-                inMobiInterstitialAdEventListener = inMobiInterstitialListeners.remove(request.identifier)
-
-                inMobiInterstitialAdEventListener?.let {
+                // Get an already built interstitial ad listener.
+                inMobiInterstitialListeners.remove(request.identifier)?.let {
                     InMobiInterstitial(
                         context,
                         placement,
@@ -612,7 +599,7 @@ class InMobiAdapter : PartnerAdapter {
 
             override fun onAdDisplayFailed(ad: InMobiInterstitial) {
                 onShowError()
-                inMobiInterstitialAdEventListener = null
+                inMobiInterstitialListeners.remove(request.identifier)
             }
 
             override fun onAdDismissed(ad: InMobiInterstitial) {
@@ -624,7 +611,7 @@ class InMobiAdapter : PartnerAdapter {
                         request = request
                     ), null
                 )
-                inMobiInterstitialAdEventListener = null
+                inMobiInterstitialListeners.remove(request.identifier)
             }
 
             override fun onAdClicked(ad: InMobiInterstitial, map: MutableMap<Any, Any>?) {
@@ -659,7 +646,7 @@ class InMobiAdapter : PartnerAdapter {
                     LOAD_FAILED,
                     "Status code: ${status.statusCode}. Message: ${status.message}"
                 )
-                inMobiInterstitialAdEventListener = null
+                inMobiInterstitialListeners.remove(request.identifier)
                 continuation.resume(
                     Result.failure(ChartboostMediationAdException(getChartboostMediationError(status.statusCode)))
                 )
@@ -703,8 +690,8 @@ class InMobiAdapter : PartnerAdapter {
      */
     private fun destroyBannerAd(partnerAd: PartnerAd): Result<PartnerAd> {
         return (partnerAd.ad as? InMobiBanner)?.let { bannerAd ->
+            inMobiBannerAdListeners.remove(partnerAd.request.identifier)
             bannerAd.destroy()
-            inMobiBannerAdEventListener = null
 
             PartnerLogController.log(INVALIDATE_SUCCEEDED)
             Result.success(partnerAd)
