@@ -68,14 +68,25 @@ class InMobiAdapter : PartnerAdapter {
     private var gdprApplies: Boolean? = null
 
     /**
-     * Keep a hard [InterstitialAdEventListener] reference.
+     * Keep a hard InterstitialAdEventListener reference.
      */
     private var inMobiInterstitialAdEventListener: InterstitialAdEventListener? = null
 
     /**
-     * Keep a hard [BannerAdEventListener] reference.
+     * Keep a hard BannerAdEventListener reference.
      */
     private var inMobiBannerAdEventListener: BannerAdEventListener? = null
+
+    /**
+     * A map of InterstitialAdEventListener keyed by a request identifier.
+     */
+    private val inMobiInterstitialListeners = mutableMapOf<String, InterstitialAdEventListener>()
+
+    /**
+     * A map of BannerAdEventListener keyed by a request identifier.
+     */
+    private val inMobiBannerAdListeners = mutableMapOf<String, BannerAdEventListener>()
+
 
     /**
      * Get the InMobi SDK version.
@@ -130,6 +141,8 @@ class InMobiAdapter : PartnerAdapter {
             .takeIf { it.isNotEmpty() }
             ?.let { accountId ->
                 val gdprConsent = gdprApplies?.let { buildGdprJsonObject(it) }
+                inMobiInterstitialListeners.clear()
+                inMobiBannerAdListeners.clear()
 
                 return suspendCancellableCoroutine { continuation ->
                     InMobiSdk.init(
@@ -409,12 +422,13 @@ class InMobiAdapter : PartnerAdapter {
 
                     return suspendCancellableCoroutine { continuation ->
 
-                        // Build a banner ad listener and assign it to the hard reference.
-                        inMobiBannerAdEventListener = buildBannerAdListener(
+                         inMobiBannerAdListeners[request.identifier] = buildBannerAdListener(
                             request = request,
                             partnerAdListener = partnerAdListener,
                             continuation = continuation
                         )
+
+                        inMobiBannerAdEventListener = inMobiBannerAdListeners.remove(request.identifier)
 
                         inMobiBannerAdEventListener?.let {
                             // Load an InMobiBanner
@@ -541,12 +555,14 @@ class InMobiAdapter : PartnerAdapter {
 
             return suspendCancellableCoroutine { continuation ->
 
-                // Build an interstitial ad listener and assign it to the hard reference.
-                inMobiInterstitialAdEventListener = buildFullScreenAdListener(
+                inMobiInterstitialListeners[request.identifier] = buildFullScreenAdListener(
                     request = request,
                     partnerAdListener = partnerAdListener,
                     continuation = continuation
                 )
+
+                // Get an already built interstitial ad listener and assign it to the hard reference.
+                inMobiInterstitialAdEventListener = inMobiInterstitialListeners.remove(request.identifier)
 
                 inMobiInterstitialAdEventListener?.let {
                     InMobiInterstitial(
