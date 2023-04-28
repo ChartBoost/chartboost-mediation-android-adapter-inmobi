@@ -411,8 +411,7 @@ class InMobiAdapter : PartnerAdapter {
 
                     return suspendCancellableCoroutine { continuation ->
                         // Load an InMobiBanner
-                        inMobiBannerAds[request.identifier] = InMobiBanner(activity, placement)
-                        inMobiBannerAds[request.identifier]?.apply {
+                        inMobiBannerAds[request.identifier] = InMobiBanner(activity, placement).apply {
                             setEnableAutoRefresh(false)
                             setBannerSize(size.width, size.height)
                             setListener(buildBannerAdListener(
@@ -420,8 +419,9 @@ class InMobiAdapter : PartnerAdapter {
                                 partnerAdListener = partnerAdListener,
                                 continuation = continuation
                             ))
-                            load()
-                        } ?: run {
+                        }
+
+                        inMobiBannerAds[request.identifier]?.load() ?: run {
                             PartnerLogController.log(
                                 LOAD_FAILED,
                                 "inMobi banner ad is null."
