@@ -28,10 +28,8 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.decodeFromJsonElement
 import org.json.JSONException
 import org.json.JSONObject
-import java.lang.Error
 import kotlin.coroutines.Continuation
 import kotlin.coroutines.resume
-import kotlin.coroutines.suspendCoroutine
 
 /**
  * The Chartboost Mediation InMobi SDK adapter.
@@ -68,6 +66,11 @@ class InMobiAdapter : PartnerAdapter {
      * Indicate whether GDPR currently applies to the user.
      */
     private var gdprApplies: Boolean? = null
+
+    /**
+     * A map of InMobi interstitial ads keyed by a request identifier.
+     */
+    private val inMobiInterstitialAds = mutableMapOf<String, InMobiInterstitial>()
 
     /**
      * Get the InMobi SDK version.
@@ -122,8 +125,9 @@ class InMobiAdapter : PartnerAdapter {
             .takeIf { it.isNotEmpty() }
             ?.let { accountId ->
                 val gdprConsent = gdprApplies?.let { buildGdprJsonObject(it) }
+                inMobiInterstitialAds.clear()
 
-                return suspendCoroutine { continuation ->
+                return suspendCancellableCoroutine { continuation ->
                     InMobiSdk.init(
                         context = context.applicationContext,
                         accountId = accountId,
@@ -362,6 +366,7 @@ class InMobiAdapter : PartnerAdapter {
             else -> {
                 // InMobi does not have destroy methods for their fullscreen ads.
                 // Remove show result for this partner ad. No longer needed.
+                inMobiInterstitialAds.remove(partnerAd.request.identifier)
                 PartnerLogController.log(INVALIDATE_SUCCEEDED)
                 Result.success(partnerAd)
             }
@@ -398,13 +403,13 @@ class InMobiAdapter : PartnerAdapter {
                         return Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_LOAD_FAILURE_INVALID_BANNER_SIZE))
                     }
 
-                    return suspendCoroutine { continuation ->
-                        // Load an InMobiBanner
+                    return suspendCancellableCoroutine { continuation ->
                         InMobiBanner(activity, placement).apply {
                             setEnableAutoRefresh(false)
                             setBannerSize(size.width, size.height)
                             setListener(
                                 buildBannerAdListener(
+                                    inMobiBanner = this,
                                     request = request,
                                     partnerAdListener = partnerAdListener,
                                     continuation = continuation
@@ -430,6 +435,7 @@ class InMobiAdapter : PartnerAdapter {
     /**
      * Build a [BannerAdEventListener] listener and return it.
      *
+     * @param inMobiBanner An [InMobiBanner] instance that is passed down for Chartboost Mediation events.
      * @param request An [PartnerAdLoadRequest] instance containing relevant data for the current ad load call.
      * @param partnerAdListener A [PartnerAdListener] to notify Chartboost Mediation of ad events.
      * @param continuation A [Continuation] to notify Chartboost Mediation of load success or failure.
@@ -437,6 +443,7 @@ class InMobiAdapter : PartnerAdapter {
      * @return A built [BannerAdEventListener] listener.
      */
     private fun buildBannerAdListener(
+        inMobiBanner: InMobiBanner,
         request: PartnerAdLoadRequest,
         partnerAdListener: PartnerAdListener,
         continuation: Continuation<Result<PartnerAd>>
@@ -447,7 +454,7 @@ class InMobiAdapter : PartnerAdapter {
                 continuation.resume(
                     Result.success(
                         PartnerAd(
-                            ad = ad,
+                            ad = inMobiBanner,
                             details = emptyMap(),
                             request = request
                         )
@@ -471,7 +478,7 @@ class InMobiAdapter : PartnerAdapter {
                 PartnerLogController.log(DID_CLICK)
                 partnerAdListener.onPartnerAdClicked(
                     PartnerAd(
-                        ad = ad,
+                        ad = inMobiBanner,
                         details = emptyMap(),
                         request = request
                     )
@@ -482,7 +489,7 @@ class InMobiAdapter : PartnerAdapter {
                 PartnerLogController.log(DID_TRACK_IMPRESSION)
                 partnerAdListener.onPartnerAdImpression(
                     PartnerAd(
-                        ad = ad,
+                        ad = inMobiBanner,
                         details = emptyMap(),
                         request = request
                     )
@@ -512,8 +519,8 @@ class InMobiAdapter : PartnerAdapter {
                 return Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_LOAD_FAILURE_INVALID_PARTNER_PLACEMENT))
             }
 
-            return suspendCoroutine { continuation ->
-                InMobiInterstitial(
+            return suspendCancellableCoroutine { continuation ->
+                inMobiInterstitialAds[request.identifier] = InMobiInterstitial(
                     context,
                     placement,
                     buildFullScreenAdListener(
@@ -521,7 +528,9 @@ class InMobiAdapter : PartnerAdapter {
                         partnerAdListener = partnerAdListener,
                         continuation = continuation
                     )
-                ).load()
+                ).apply {
+                    load()
+                }
             }
         } ?: run {
             PartnerLogController.log(LOAD_FAILED, "Placement is not valid.")
@@ -550,6 +559,7 @@ class InMobiAdapter : PartnerAdapter {
 
             override fun onAdDisplayFailed(ad: InMobiInterstitial) {
                 onShowError()
+                inMobiInterstitialAds.remove(request.identifier)
             }
 
             override fun onAdDismissed(ad: InMobiInterstitial) {
@@ -561,6 +571,7 @@ class InMobiAdapter : PartnerAdapter {
                         request = request
                     ), null
                 )
+                inMobiInterstitialAds.remove(request.identifier)
             }
 
             override fun onAdClicked(ad: InMobiInterstitial, map: MutableMap<Any, Any>?) {
@@ -595,6 +606,7 @@ class InMobiAdapter : PartnerAdapter {
                     LOAD_FAILED,
                     "Status code: ${status.statusCode}. Message: ${status.message}"
                 )
+                inMobiInterstitialAds.remove(request.identifier)
                 continuation.resume(
                     Result.failure(ChartboostMediationAdException(getChartboostMediationError(status.statusCode)))
                 )
