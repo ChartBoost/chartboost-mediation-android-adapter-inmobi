@@ -73,11 +73,6 @@ class InMobiAdapter : PartnerAdapter {
     private val inMobiInterstitialAds = mutableMapOf<String, InMobiInterstitial>()
 
     /**
-     * A map of InMobi banner ads keyed by a request identifier.
-     */
-    private val inMobiBannerAds = mutableMapOf<String, InMobiBanner>()
-
-    /**
      * Get the InMobi SDK version.
      */
     override val partnerSdkVersion: String
@@ -131,10 +126,8 @@ class InMobiAdapter : PartnerAdapter {
             ?.let { accountId ->
                 val gdprConsent = gdprApplies?.let { buildGdprJsonObject(it) }
                 inMobiInterstitialAds.clear()
-                inMobiBannerAds.clear()
 
                 return suspendCancellableCoroutine { continuation ->
-                    logLevel = InMobiSdk.LogLevel.DEBUG
                     InMobiSdk.init(
                         context = context.applicationContext,
                         accountId = accountId,
@@ -411,11 +404,12 @@ class InMobiAdapter : PartnerAdapter {
                     }
 
                     return suspendCancellableCoroutine { continuation ->
-                        inMobiBannerAds[request.identifier] = InMobiBanner(activity, placement).apply {
+                        InMobiBanner(activity, placement).apply {
                             setEnableAutoRefresh(false)
                             setBannerSize(size.width, size.height)
                             setListener(
                                 buildBannerAdListener(
+                                    inMobiBanner = this,
                                     request = request,
                                     partnerAdListener = partnerAdListener,
                                     continuation = continuation
@@ -441,6 +435,7 @@ class InMobiAdapter : PartnerAdapter {
     /**
      * Build a [BannerAdEventListener] listener and return it.
      *
+     * @param inMobiBanner An [InMobiBanner] instance that is passed down for Chartboost Mediation events.
      * @param request An [PartnerAdLoadRequest] instance containing relevant data for the current ad load call.
      * @param partnerAdListener A [PartnerAdListener] to notify Chartboost Mediation of ad events.
      * @param continuation A [Continuation] to notify Chartboost Mediation of load success or failure.
@@ -448,6 +443,7 @@ class InMobiAdapter : PartnerAdapter {
      * @return A built [BannerAdEventListener] listener.
      */
     private fun buildBannerAdListener(
+        inMobiBanner: InMobiBanner,
         request: PartnerAdLoadRequest,
         partnerAdListener: PartnerAdListener,
         continuation: Continuation<Result<PartnerAd>>
@@ -458,7 +454,7 @@ class InMobiAdapter : PartnerAdapter {
                 continuation.resume(
                     Result.success(
                         PartnerAd(
-                            ad = ad,
+                            ad = inMobiBanner,
                             details = emptyMap(),
                             request = request
                         )
@@ -482,7 +478,7 @@ class InMobiAdapter : PartnerAdapter {
                 PartnerLogController.log(DID_CLICK)
                 partnerAdListener.onPartnerAdClicked(
                     PartnerAd(
-                        ad = ad,
+                        ad = inMobiBanner,
                         details = emptyMap(),
                         request = request
                     )
@@ -493,7 +489,7 @@ class InMobiAdapter : PartnerAdapter {
                 PartnerLogController.log(DID_TRACK_IMPRESSION)
                 partnerAdListener.onPartnerAdImpression(
                     PartnerAd(
-                        ad = ad,
+                        ad = inMobiBanner,
                         details = emptyMap(),
                         request = request
                     )
@@ -655,7 +651,6 @@ class InMobiAdapter : PartnerAdapter {
     private fun destroyBannerAd(partnerAd: PartnerAd): Result<PartnerAd> {
         return (partnerAd.ad as? InMobiBanner)?.let { bannerAd ->
             bannerAd.destroy()
-            inMobiBannerAds.remove(partnerAd.request.identifier)
 
             PartnerLogController.log(INVALIDATE_SUCCEEDED)
             Result.success(partnerAd)
