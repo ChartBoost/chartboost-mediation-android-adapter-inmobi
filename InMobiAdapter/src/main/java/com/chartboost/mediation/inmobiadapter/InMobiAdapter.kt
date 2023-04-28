@@ -134,6 +134,7 @@ class InMobiAdapter : PartnerAdapter {
                 inMobiBannerAds.clear()
 
                 return suspendCancellableCoroutine { continuation ->
+                    logLevel = InMobiSdk.LogLevel.DEBUG
                     InMobiSdk.init(
                         context = context.applicationContext,
                         accountId = accountId,
@@ -410,31 +411,18 @@ class InMobiAdapter : PartnerAdapter {
                     }
 
                     return suspendCancellableCoroutine { continuation ->
-                        // Load an InMobiBanner
                         inMobiBannerAds[request.identifier] = InMobiBanner(activity, placement).apply {
                             setEnableAutoRefresh(false)
                             setBannerSize(size.width, size.height)
-                            setListener(buildBannerAdListener(
-                                request = request,
-                                partnerAdListener = partnerAdListener,
-                                continuation = continuation
-                            ))
-                        }
-
-                        inMobiBannerAds[request.identifier]?.load() ?: run {
-                            PartnerLogController.log(
-                                LOAD_FAILED,
-                                "inMobi banner ad is null."
-                            )
-                            continuation.resumeWith(
-                                Result.failure(
-                                    ChartboostMediationAdException(
-                                        ChartboostMediationError.CM_LOAD_FAILURE_UNKNOWN
-                                    )
+                            setListener(
+                                buildBannerAdListener(
+                                    request = request,
+                                    partnerAdListener = partnerAdListener,
+                                    continuation = continuation
                                 )
                             )
+                            load()
                         }
-
                     }
                 } ?: run {
                     PartnerLogController.log(LOAD_FAILED, "Size can't be null.")
@@ -483,7 +471,6 @@ class InMobiAdapter : PartnerAdapter {
                 status: InMobiAdRequestStatus
             ) {
                 PartnerLogController.log(LOAD_FAILED, status.message ?: "")
-                inMobiBannerAds.remove(request.identifier)
                 continuation.resume(Result.failure(ChartboostMediationAdException(getChartboostMediationError(status.statusCode))))
             }
 
@@ -545,20 +532,8 @@ class InMobiAdapter : PartnerAdapter {
                         partnerAdListener = partnerAdListener,
                         continuation = continuation
                     )
-                )
-
-                inMobiInterstitialAds[request.identifier]?.load() ?: run {
-                    PartnerLogController.log(
-                        LOAD_FAILED,
-                        "inMobi InterstitialAd is null."
-                    )
-                    continuation.resumeWith(
-                        Result.failure(
-                            ChartboostMediationAdException(
-                                ChartboostMediationError.CM_LOAD_FAILURE_UNKNOWN
-                            )
-                        )
-                    )
+                ).apply {
+                    load()
                 }
             }
         } ?: run {
