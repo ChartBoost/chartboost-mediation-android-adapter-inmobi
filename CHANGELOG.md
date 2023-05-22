@@ -6,9 +6,6 @@ Adapters are compatible with any Chartboost Mediation SDK version within that ma
 ### 4.10.5.4.1
 - Fixed an issue where InMobi event listeners were garbage collected.
 
-### 4.10.5.4.0
-- This version of the adapter has been certified with InMobi SDK 10.5.4.
-
 ### 4.10.1.3.1
 - Updated the dependency on Chartboost Mediation SDK to 4.0.0.
 
