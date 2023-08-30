@@ -20,6 +20,7 @@ import com.inmobi.ads.listeners.BannerAdEventListener
 import com.inmobi.ads.listeners.InterstitialAdEventListener
 import com.inmobi.sdk.InMobiSdk
 import com.inmobi.sdk.SdkInitializationListener
+import kotlinx.coroutines.CancellableContinuation
 import kotlinx.coroutines.Dispatchers.Main
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
@@ -128,13 +129,18 @@ class InMobiAdapter : PartnerAdapter {
                 inMobiInterstitialAds.clear()
 
                 return suspendCancellableCoroutine { continuation ->
+                    fun resumeOnce(result: Result<Unit>) {
+                        if (continuation.isActive) {
+                            continuation.resume(result)
+                        }
+                    }
                     InMobiSdk.init(
                         context = context.applicationContext,
                         accountId = accountId,
                         consentObject = gdprConsent,
                         sdkInitializationListener = object : SdkInitializationListener {
                             override fun onInitializationComplete(error: Error?) {
-                                continuation.resume(
+                                resumeOnce(
                                     error?.let {
                                         PartnerLogController.log(SETUP_FAILED, "${it.message}")
                                         Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_INITIALIZATION_FAILURE_UNKNOWN))
@@ -319,9 +325,14 @@ class InMobiAdapter : PartnerAdapter {
                 (partnerAd.ad as? InMobiInterstitial)?.let { ad ->
                     if (ad.isReady()) {
                         suspendCancellableCoroutine { continuation ->
+                            fun resumeOnce(result: Result<PartnerAd>) {
+                                if (continuation.isActive) {
+                                    continuation.resume(result)
+                                }
+                            }
                             onShowSuccess = {
                                 PartnerLogController.log(SHOW_SUCCEEDED)
-                                continuation.resume(Result.success(partnerAd))
+                                resumeOnce(Result.success(partnerAd))
                             }
 
                             onShowError = {
@@ -329,7 +340,7 @@ class InMobiAdapter : PartnerAdapter {
                                     SHOW_FAILED,
                                     "Placement: ${partnerAd.request.partnerPlacement}"
                                 )
-                                continuation.resume(
+                                resumeOnce(
                                     Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_SHOW_FAILURE_UNKNOWN))
                                 )
                             }
@@ -446,12 +457,17 @@ class InMobiAdapter : PartnerAdapter {
         inMobiBanner: InMobiBanner,
         request: PartnerAdLoadRequest,
         partnerAdListener: PartnerAdListener,
-        continuation: Continuation<Result<PartnerAd>>
+        continuation: CancellableContinuation<Result<PartnerAd>>
     ): BannerAdEventListener {
+        fun resumeOnce(result: Result<PartnerAd>) {
+            if (continuation.isActive) {
+                continuation.resume(result)
+            }
+        }
         return object : BannerAdEventListener() {
             override fun onAdLoadSucceeded(ad: InMobiBanner, info: AdMetaInfo) {
                 PartnerLogController.log(LOAD_SUCCEEDED)
-                continuation.resume(
+                resumeOnce(
                     Result.success(
                         PartnerAd(
                             ad = inMobiBanner,
@@ -467,7 +483,7 @@ class InMobiAdapter : PartnerAdapter {
                 status: InMobiAdRequestStatus
             ) {
                 PartnerLogController.log(LOAD_FAILED, status.message ?: "")
-                continuation.resume(Result.failure(ChartboostMediationAdException(getChartboostMediationError(status.statusCode))))
+                resumeOnce(Result.failure(ChartboostMediationAdException(getChartboostMediationError(status.statusCode))))
             }
 
             override fun onAdDisplayed(ad: InMobiBanner) {}
@@ -550,8 +566,13 @@ class InMobiAdapter : PartnerAdapter {
     private fun buildFullScreenAdListener(
         request: PartnerAdLoadRequest,
         partnerAdListener: PartnerAdListener,
-        continuation: Continuation<Result<PartnerAd>>
+        continuation: CancellableContinuation<Result<PartnerAd>>
     ): InterstitialAdEventListener {
+        fun resumeOnce(result: Result<PartnerAd>) {
+            if (continuation.isActive) {
+                continuation.resume(result)
+            }
+        }
         return object : InterstitialAdEventListener() {
             override fun onAdDisplayed(ad: InMobiInterstitial, info: AdMetaInfo) {
                 onShowSuccess()
@@ -587,7 +608,7 @@ class InMobiAdapter : PartnerAdapter {
 
             override fun onAdLoadSucceeded(ad: InMobiInterstitial, adMetaInfo: AdMetaInfo) {
                 PartnerLogController.log(LOAD_SUCCEEDED)
-                continuation.resume(
+                resumeOnce(
                     Result.success(
                         PartnerAd(
                             ad = ad,
@@ -607,7 +628,7 @@ class InMobiAdapter : PartnerAdapter {
                     "Status code: ${status.statusCode}. Message: ${status.message}"
                 )
                 inMobiInterstitialAds.remove(request.identifier)
-                continuation.resume(
+                resumeOnce(
                     Result.failure(ChartboostMediationAdException(getChartboostMediationError(status.statusCode)))
                 )
             }
