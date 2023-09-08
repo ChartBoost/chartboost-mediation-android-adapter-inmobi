@@ -286,13 +286,13 @@ class InMobiAdapter : PartnerAdapter {
     ): Result<PartnerAd> {
         PartnerLogController.log(LOAD_STARTED)
 
-        return when (request.format) {
-            AdFormat.BANNER -> {
+        return when (request.format.key) {
+            AdFormat.BANNER.key, "adaptive_banner" -> {
                 withContext(Main) {
                     loadBannerAd(context, request, partnerAdListener)
                 }
             }
-            AdFormat.INTERSTITIAL, AdFormat.REWARDED -> loadFullScreenAd(
+            AdFormat.INTERSTITIAL.key, AdFormat.REWARDED.key -> loadFullScreenAd(
                 context,
                 request,
                 partnerAdListener
@@ -315,13 +315,13 @@ class InMobiAdapter : PartnerAdapter {
     override suspend fun show(context: Context, partnerAd: PartnerAd): Result<PartnerAd> {
         PartnerLogController.log(SHOW_STARTED)
 
-        return when (partnerAd.request.format) {
-            AdFormat.BANNER -> {
+        return when (partnerAd.request.format.key) {
+            AdFormat.BANNER.key, "adaptive_banner" -> {
                 // Banner ads do not have a separate "show" mechanism.
                 PartnerLogController.log(SHOW_SUCCEEDED)
                 Result.success(partnerAd)
             }
-            AdFormat.INTERSTITIAL, AdFormat.REWARDED -> {
+            AdFormat.INTERSTITIAL.key, AdFormat.REWARDED.key -> {
                 (partnerAd.ad as? InMobiInterstitial)?.let { ad ->
                     if (ad.isReady()) {
                         suspendCancellableCoroutine { continuation ->
@@ -372,8 +372,8 @@ class InMobiAdapter : PartnerAdapter {
     override suspend fun invalidate(partnerAd: PartnerAd): Result<PartnerAd> {
         PartnerLogController.log(INVALIDATE_STARTED)
 
-        return when (partnerAd.request.format) {
-            AdFormat.BANNER -> destroyBannerAd(partnerAd)
+        return when (partnerAd.request.format.key) {
+            AdFormat.BANNER.key, "adaptive_banner" -> destroyBannerAd(partnerAd)
             else -> {
                 // InMobi does not have destroy methods for their fullscreen ads.
                 // Remove show result for this partner ad. No longer needed.
