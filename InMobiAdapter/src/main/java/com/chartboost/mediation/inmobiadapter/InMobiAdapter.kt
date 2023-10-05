@@ -381,9 +381,12 @@ class InMobiAdapter : PartnerAdapter {
             try {
                 put(InMobiSdk.IM_GDPR_CONSENT_AVAILABLE, gdprConsent)
                 put("gdpr", if (gdprApplies == true) "1" else "0")
-                getTcfString(context).takeIf { it.isNotEmpty() }?.let { tcfString ->
+                val tcfString = getTcfString(context)
+                if (tcfString.isNotEmpty()) {
                     put(InMobiSdk.IM_GDPR_CONSENT_IAB, tcfString)
-                } ?: PartnerLogController.log(CUSTOM, "TCFv2 String is empty or was not found.")
+                } else {
+                    PartnerLogController.log(CUSTOM, "TCFv2 String is empty or was not found.")
+                }
             } catch (error: JSONException) {
                 PartnerLogController.log(
                     CUSTOM,
