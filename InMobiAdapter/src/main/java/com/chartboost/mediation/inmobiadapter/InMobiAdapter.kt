@@ -55,7 +55,7 @@ class InMobiAdapter : PartnerAdapter {
         /**
          * Key for getting the IAB TCFv2 String.
          */
-        private const val TC_STRING = "IABTCF_TCString"
+        private const val TCF_STRING = "IABTCF_TCString"
     }
 
     /**
@@ -381,7 +381,11 @@ class InMobiAdapter : PartnerAdapter {
             try {
                 put(InMobiSdk.IM_GDPR_CONSENT_AVAILABLE, gdprConsent)
                 put("gdpr", if (gdprApplies == true) "1" else "0")
-                put(InMobiSdk.IM_GDPR_CONSENT_IAB, getTCString(context))
+                getTCFString(context).takeIf { it.isNotEmpty() }?.let { tcfString ->
+                    put(InMobiSdk.IM_GDPR_CONSENT_IAB, tcfString)
+                } ?: run {
+                    PartnerLogController.log(CUSTOM, "TCFv2 String is empty or was not found.")
+                }
             } catch (error: JSONException) {
                 PartnerLogController.log(
                     CUSTOM,
@@ -399,9 +403,9 @@ class InMobiAdapter : PartnerAdapter {
      *
      * @return The TCFv2 String or empty string if not found.
      */
-    private fun getTCString(context: Context): String {
+    private fun getTCFString(context: Context): String {
         val sharedPrefs = context.getSharedPreferences("${context.packageName}_preferences", Context.MODE_PRIVATE)
-        return sharedPrefs.getString(TC_STRING, "") ?: ""
+        return sharedPrefs.getString(TCF_STRING, "") ?: ""
     }
 
     /**
