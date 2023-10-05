@@ -40,7 +40,7 @@ class InMobiAdapter : PartnerAdapter {
         /**
          * Log level option that can be set to alter the output verbosity of the InMobi SDK.
          */
-        public var logLevel = InMobiSdk.LogLevel.NONE
+        var logLevel = InMobiSdk.LogLevel.NONE
             set(value) {
                 field = value
                 InMobiSdk.setLogLevel(value)
@@ -51,6 +51,11 @@ class InMobiAdapter : PartnerAdapter {
          * Key for parsing the InMobi SDK account ID.
          */
         private const val ACCOUNT_ID_KEY = "account_id"
+
+        /**
+         * Key for getting the IAB TCFv2 String.
+         */
+        private const val TC_STRING = "IABTCF_TCString"
     }
 
     /**
@@ -125,7 +130,7 @@ class InMobiAdapter : PartnerAdapter {
         ).trim()
             .takeIf { it.isNotEmpty() }
             ?.let { accountId ->
-                val gdprConsent = gdprApplies?.let { buildGdprJsonObject(it) }
+                val gdprConsent = gdprApplies?.let { buildGdprJsonObject(it, context) }
                 inMobiInterstitialAds.clear()
 
                 return suspendCancellableCoroutine { continuation ->
@@ -134,6 +139,7 @@ class InMobiAdapter : PartnerAdapter {
                             continuation.resume(result)
                         }
                     }
+                    logLevel = InMobiSdk.LogLevel.DEBUG
                     InMobiSdk.init(
                         context = context.applicationContext,
                         accountId = accountId,
@@ -157,27 +163,6 @@ class InMobiAdapter : PartnerAdapter {
             } ?: run {
             PartnerLogController.log(SETUP_FAILED, "Missing account ID.")
             return Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_INITIALIZATION_FAILURE_INVALID_CREDENTIALS))
-        }
-    }
-
-    /**
-     * Build a [JSONObject] that will be passed to the InMobi SDK for GDPR during [setUp].
-     *
-     * @param gdprConsent A Boolean indicating whether GDPR consent is granted or not.
-     *
-     * @return a [JSONObject] object as to whether GDPR  .
-     */
-    private fun buildGdprJsonObject(gdprConsent: Boolean): JSONObject {
-        return JSONObject().apply {
-            try {
-                put(InMobiSdk.IM_GDPR_CONSENT_AVAILABLE, gdprConsent)
-                put("gdpr", if (gdprApplies == true) "1" else "0")
-            } catch (error: JSONException) {
-                PartnerLogController.log(
-                    CUSTOM,
-                    "Failed to build GDPR JSONObject with error: ${error.message}"
-                )
-            }
         }
     }
 
@@ -213,7 +198,7 @@ class InMobiAdapter : PartnerAdapter {
 
         if (applies == true) {
             InMobiSdk.setPartnerGDPRConsent(
-                buildGdprJsonObject(GdprConsentStatus.GDPR_CONSENT_GRANTED == gdprConsentStatus)
+                buildGdprJsonObject(GdprConsentStatus.GDPR_CONSENT_GRANTED == gdprConsentStatus, context)
             )
         }
     }
@@ -382,6 +367,41 @@ class InMobiAdapter : PartnerAdapter {
                 Result.success(partnerAd)
             }
         }
+    }
+
+    /**
+     * Build a [JSONObject] that will be passed to the InMobi SDK for GDPR during [setUp].
+     *
+     * @param gdprConsent A Boolean indicating whether GDPR consent is granted or not.
+     *
+     * @return a [JSONObject] object as to whether GDPR  .
+     */
+    private fun buildGdprJsonObject(gdprConsent: Boolean, context: Context): JSONObject {
+        return JSONObject().apply {
+            try {
+                put(InMobiSdk.IM_GDPR_CONSENT_AVAILABLE, gdprConsent)
+                put("gdpr", if (gdprApplies == true) "1" else "0")
+                put(InMobiSdk.IM_GDPR_CONSENT_IAB, getTCString(context))
+            } catch (error: JSONException) {
+                PartnerLogController.log(
+                    CUSTOM,
+                    "Failed to build GDPR JSONObject with error: ${error.message}"
+                )
+            }
+        }
+    }
+
+
+    /**
+     * Get the TCFv2 String from shared preferences.
+     *
+     * @param context The current [Context].
+     *
+     * @return The TCFv2 String or empty string if not found.
+     */
+    private fun getTCString(context: Context): String {
+        val sharedPrefs = context.getSharedPreferences("${context.packageName}_preferences", Context.MODE_PRIVATE)
+        return sharedPrefs.getString(TC_STRING, "") ?: ""
     }
 
     /**

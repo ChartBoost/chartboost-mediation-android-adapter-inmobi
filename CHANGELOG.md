@@ -3,6 +3,9 @@
 Note the first digit of every adapter version corresponds to the major version of the Chartboost Mediation SDK compatible with that adapter. 
 Adapters are compatible with any Chartboost Mediation SDK version within that major version.
 
+### 4.10.5.7.3
+- Added support to read TCFv2 string from shared preferences.
+
 ### 4.10.5.7.2
 - Updated to handle recent AdFormat changes.
 
