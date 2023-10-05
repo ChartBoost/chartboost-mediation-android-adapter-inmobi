@@ -55,7 +55,7 @@ class InMobiAdapter : PartnerAdapter {
         /**
          * Key for getting the IAB TCFv2 String.
          */
-        private const val TCF_STRING = "IABTCF_TCString"
+        private const val TCF_STRING_KEY = "IABTCF_TCString"
     }
 
     /**
@@ -139,7 +139,6 @@ class InMobiAdapter : PartnerAdapter {
                             continuation.resume(result)
                         }
                     }
-                    logLevel = InMobiSdk.LogLevel.DEBUG
                     InMobiSdk.init(
                         context = context.applicationContext,
                         accountId = accountId,
@@ -373,19 +372,18 @@ class InMobiAdapter : PartnerAdapter {
      * Build a [JSONObject] that will be passed to the InMobi SDK for GDPR during [setUp].
      *
      * @param gdprConsent A Boolean indicating whether GDPR consent is granted or not.
+     * @param context The current [Context].
      *
-     * @return a [JSONObject] object as to whether GDPR  .
+     * @return a [JSONObject] object as to whether GDPR consent is granted or not.
      */
     private fun buildGdprJsonObject(gdprConsent: Boolean, context: Context): JSONObject {
         return JSONObject().apply {
             try {
                 put(InMobiSdk.IM_GDPR_CONSENT_AVAILABLE, gdprConsent)
                 put("gdpr", if (gdprApplies == true) "1" else "0")
-                getTCFString(context).takeIf { it.isNotEmpty() }?.let { tcfString ->
+                getTcfString(context).takeIf { it.isNotEmpty() }?.let { tcfString ->
                     put(InMobiSdk.IM_GDPR_CONSENT_IAB, tcfString)
-                } ?: run {
-                    PartnerLogController.log(CUSTOM, "TCFv2 String is empty or was not found.")
-                }
+                } ?: PartnerLogController.log(CUSTOM, "TCFv2 String is empty or was not found.")
             } catch (error: JSONException) {
                 PartnerLogController.log(
                     CUSTOM,
@@ -401,11 +399,11 @@ class InMobiAdapter : PartnerAdapter {
      *
      * @param context The current [Context].
      *
-     * @return The TCFv2 String or empty string if not found.
+     * @return The TCFv2 String or an empty string if not found.
      */
-    private fun getTCFString(context: Context): String {
+    private fun getTcfString(context: Context): String {
         val sharedPrefs = context.getSharedPreferences("${context.packageName}_preferences", Context.MODE_PRIVATE)
-        return sharedPrefs.getString(TCF_STRING, "") ?: ""
+        return sharedPrefs.getString(TCF_STRING_KEY, "") ?: ""
     }
 
     /**
