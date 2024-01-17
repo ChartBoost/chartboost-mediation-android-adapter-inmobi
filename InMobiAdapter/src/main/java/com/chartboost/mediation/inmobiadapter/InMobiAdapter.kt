@@ -1,6 +1,6 @@
 /*
  * Copyright 2022-2023 Chartboost, Inc.
- * 
+ *
  * Use of this source code is governed by an MIT-style
  * license that can be found in the LICENSE file.
  */
@@ -121,12 +121,12 @@ class InMobiAdapter : PartnerAdapter {
      */
     override suspend fun setUp(
         context: Context,
-        partnerConfiguration: PartnerConfiguration
+        partnerConfiguration: PartnerConfiguration,
     ): Result<Unit> {
         PartnerLogController.log(SETUP_STARTED)
 
         Json.decodeFromJsonElement<String>(
-            (partnerConfiguration.credentials as JsonObject).getValue(ACCOUNT_ID_KEY)
+            (partnerConfiguration.credentials as JsonObject).getValue(ACCOUNT_ID_KEY),
         ).trim()
             .takeIf { it.isNotEmpty() }
             ?.let { accountId ->
@@ -143,20 +143,23 @@ class InMobiAdapter : PartnerAdapter {
                         context = context.applicationContext,
                         accountId = accountId,
                         consentObject = gdprConsent,
-                        sdkInitializationListener = object : SdkInitializationListener {
-                            override fun onInitializationComplete(error: Error?) {
-                                resumeOnce(
-                                    error?.let {
-                                        PartnerLogController.log(SETUP_FAILED, "${it.message}")
-                                        Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_INITIALIZATION_FAILURE_UNKNOWN))
-                                    } ?: run {
-                                        Result.success(
-                                            PartnerLogController.log(SETUP_SUCCEEDED)
-                                        )
-                                    }
-                                )
-                            }
-                        }
+                        sdkInitializationListener =
+                            object : SdkInitializationListener {
+                                override fun onInitializationComplete(error: Error?) {
+                                    resumeOnce(
+                                        error?.let {
+                                            PartnerLogController.log(SETUP_FAILED, "${it.message}")
+                                            Result.failure(
+                                                ChartboostMediationAdException(ChartboostMediationError.CM_INITIALIZATION_FAILURE_UNKNOWN),
+                                            )
+                                        } ?: run {
+                                            Result.success(
+                                                PartnerLogController.log(SETUP_SUCCEEDED),
+                                            )
+                                        },
+                                    )
+                                }
+                            },
                     )
                 }
             } ?: run {
@@ -175,14 +178,14 @@ class InMobiAdapter : PartnerAdapter {
     override fun setGdpr(
         context: Context,
         applies: Boolean?,
-        gdprConsentStatus: GdprConsentStatus
+        gdprConsentStatus: GdprConsentStatus,
     ) {
         PartnerLogController.log(
             when (applies) {
                 true -> GDPR_APPLICABLE
                 false -> GDPR_NOT_APPLICABLE
                 else -> GDPR_UNKNOWN
-            }
+            },
         )
 
         PartnerLogController.log(
@@ -190,14 +193,14 @@ class InMobiAdapter : PartnerAdapter {
                 GdprConsentStatus.GDPR_CONSENT_UNKNOWN -> GDPR_CONSENT_UNKNOWN
                 GdprConsentStatus.GDPR_CONSENT_GRANTED -> GDPR_CONSENT_GRANTED
                 GdprConsentStatus.GDPR_CONSENT_DENIED -> GDPR_CONSENT_DENIED
-            }
+            },
         )
 
         this.gdprApplies = applies
 
         if (applies == true) {
             InMobiSdk.setPartnerGDPRConsent(
-                buildGdprJsonObject(GdprConsentStatus.GDPR_CONSENT_GRANTED == gdprConsentStatus, context)
+                buildGdprJsonObject(GdprConsentStatus.GDPR_CONSENT_GRANTED == gdprConsentStatus, context),
             )
         }
     }
@@ -212,11 +215,14 @@ class InMobiAdapter : PartnerAdapter {
     override fun setCcpaConsent(
         context: Context,
         hasGrantedCcpaConsent: Boolean,
-        privacyString: String
+        privacyString: String,
     ) {
         PartnerLogController.log(
-            if (hasGrantedCcpaConsent) CCPA_CONSENT_GRANTED
-            else CCPA_CONSENT_DENIED
+            if (hasGrantedCcpaConsent) {
+                CCPA_CONSENT_GRANTED
+            } else {
+                CCPA_CONSENT_DENIED
+            },
         )
 
         // NO-OP: InMobi handles CCPA on their dashboard.
@@ -228,10 +234,16 @@ class InMobiAdapter : PartnerAdapter {
      * @param context The current [Context].
      * @param isSubjectToCoppa True if the user is subject to COPPA, false otherwise.
      */
-    override fun setUserSubjectToCoppa(context: Context, isSubjectToCoppa: Boolean) {
+    override fun setUserSubjectToCoppa(
+        context: Context,
+        isSubjectToCoppa: Boolean,
+    ) {
         PartnerLogController.log(
-            if (isSubjectToCoppa) COPPA_SUBJECT
-            else COPPA_NOT_SUBJECT
+            if (isSubjectToCoppa) {
+                COPPA_SUBJECT
+            } else {
+                COPPA_NOT_SUBJECT
+            },
         )
 
         // NO-OP: InMobi does not have an API for setting COPPA.
@@ -247,7 +259,7 @@ class InMobiAdapter : PartnerAdapter {
      */
     override suspend fun fetchBidderInformation(
         context: Context,
-        request: PreBidRequest
+        request: PreBidRequest,
     ): Map<String, String> {
         PartnerLogController.log(BIDDER_INFO_FETCH_STARTED)
         PartnerLogController.log(BIDDER_INFO_FETCH_SUCCEEDED)
@@ -266,7 +278,7 @@ class InMobiAdapter : PartnerAdapter {
     override suspend fun load(
         context: Context,
         request: PartnerAdLoadRequest,
-        partnerAdListener: PartnerAdListener
+        partnerAdListener: PartnerAdListener,
     ): Result<PartnerAd> {
         PartnerLogController.log(LOAD_STARTED)
 
@@ -276,11 +288,12 @@ class InMobiAdapter : PartnerAdapter {
                     loadBannerAd(context, request, partnerAdListener)
                 }
             }
-            AdFormat.INTERSTITIAL.key, AdFormat.REWARDED.key -> loadFullScreenAd(
-                context,
-                request,
-                partnerAdListener
-            )
+            AdFormat.INTERSTITIAL.key, AdFormat.REWARDED.key ->
+                loadFullScreenAd(
+                    context,
+                    request,
+                    partnerAdListener,
+                )
             else -> {
                 PartnerLogController.log(LOAD_FAILED)
                 Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_LOAD_FAILURE_UNSUPPORTED_AD_FORMAT))
@@ -296,7 +309,10 @@ class InMobiAdapter : PartnerAdapter {
      *
      * @return Result.success(PartnerAd) if the ad was successfully shown, Result.failure(Exception) otherwise.
      */
-    override suspend fun show(context: Context, partnerAd: PartnerAd): Result<PartnerAd> {
+    override suspend fun show(
+        context: Context,
+        partnerAd: PartnerAd,
+    ): Result<PartnerAd> {
         PartnerLogController.log(SHOW_STARTED)
 
         return when (partnerAd.request.format.key) {
@@ -322,10 +338,10 @@ class InMobiAdapter : PartnerAdapter {
                             onShowError = {
                                 PartnerLogController.log(
                                     SHOW_FAILED,
-                                    "Placement: ${partnerAd.request.partnerPlacement}"
+                                    "Placement: ${partnerAd.request.partnerPlacement}",
                                 )
                                 resumeOnce(
-                                    Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_SHOW_FAILURE_UNKNOWN))
+                                    Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_SHOW_FAILURE_UNKNOWN)),
                                 )
                             }
                             ad.show()
@@ -376,7 +392,10 @@ class InMobiAdapter : PartnerAdapter {
      *
      * @return a [JSONObject] object as to whether GDPR consent is granted or not.
      */
-    private fun buildGdprJsonObject(gdprConsent: Boolean, context: Context): JSONObject {
+    private fun buildGdprJsonObject(
+        gdprConsent: Boolean,
+        context: Context,
+    ): JSONObject {
         return JSONObject().apply {
             try {
                 put(InMobiSdk.IM_GDPR_CONSENT_AVAILABLE, gdprConsent)
@@ -390,12 +409,11 @@ class InMobiAdapter : PartnerAdapter {
             } catch (error: JSONException) {
                 PartnerLogController.log(
                     CUSTOM,
-                    "Failed to build GDPR JSONObject with error: ${error.message}"
+                    "Failed to build GDPR JSONObject with error: ${error.message}",
                 )
             }
         }
     }
-
 
     /**
      * Get the TCFv2 String from shared preferences.
@@ -421,7 +439,7 @@ class InMobiAdapter : PartnerAdapter {
     private suspend fun loadBannerAd(
         context: Context,
         request: PartnerAdLoadRequest,
-        partnerAdListener: PartnerAdListener
+        partnerAdListener: PartnerAdListener,
     ): Result<PartnerAd> {
         request.partnerPlacement.toLongOrNull()?.let { placement ->
             // There should be no placement with this value.
@@ -448,8 +466,8 @@ class InMobiAdapter : PartnerAdapter {
                                     inMobiBanner = this,
                                     request = request,
                                     partnerAdListener = partnerAdListener,
-                                    continuation = continuation
-                                )
+                                    continuation = continuation,
+                                ),
                             )
                             load()
                         }
@@ -482,7 +500,7 @@ class InMobiAdapter : PartnerAdapter {
         inMobiBanner: InMobiBanner,
         request: PartnerAdLoadRequest,
         partnerAdListener: PartnerAdListener,
-        continuation: CancellableContinuation<Result<PartnerAd>>
+        continuation: CancellableContinuation<Result<PartnerAd>>,
     ): BannerAdEventListener {
         fun resumeOnce(result: Result<PartnerAd>) {
             if (continuation.isActive) {
@@ -490,22 +508,25 @@ class InMobiAdapter : PartnerAdapter {
             }
         }
         return object : BannerAdEventListener() {
-            override fun onAdLoadSucceeded(ad: InMobiBanner, info: AdMetaInfo) {
+            override fun onAdLoadSucceeded(
+                ad: InMobiBanner,
+                info: AdMetaInfo,
+            ) {
                 PartnerLogController.log(LOAD_SUCCEEDED)
                 resumeOnce(
                     Result.success(
                         PartnerAd(
                             ad = inMobiBanner,
                             details = emptyMap(),
-                            request = request
-                        )
-                    )
+                            request = request,
+                        ),
+                    ),
                 )
             }
 
             override fun onAdLoadFailed(
                 ad: InMobiBanner,
-                status: InMobiAdRequestStatus
+                status: InMobiAdRequestStatus,
             ) {
                 PartnerLogController.log(LOAD_FAILED, status.message ?: "")
                 resumeOnce(Result.failure(ChartboostMediationAdException(getChartboostMediationError(status.statusCode))))
@@ -515,14 +536,17 @@ class InMobiAdapter : PartnerAdapter {
 
             override fun onAdDismissed(ad: InMobiBanner) {}
 
-            override fun onAdClicked(ad: InMobiBanner, map: MutableMap<Any, Any>?) {
+            override fun onAdClicked(
+                ad: InMobiBanner,
+                map: MutableMap<Any, Any>?,
+            ) {
                 PartnerLogController.log(DID_CLICK)
                 partnerAdListener.onPartnerAdClicked(
                     PartnerAd(
                         ad = inMobiBanner,
                         details = emptyMap(),
-                        request = request
-                    )
+                        request = request,
+                    ),
                 )
             }
 
@@ -532,8 +556,8 @@ class InMobiAdapter : PartnerAdapter {
                     PartnerAd(
                         ad = inMobiBanner,
                         details = emptyMap(),
-                        request = request
-                    )
+                        request = request,
+                    ),
                 )
             }
         }
@@ -551,7 +575,7 @@ class InMobiAdapter : PartnerAdapter {
     private suspend fun loadFullScreenAd(
         context: Context,
         request: PartnerAdLoadRequest,
-        partnerAdListener: PartnerAdListener
+        partnerAdListener: PartnerAdListener,
     ): Result<PartnerAd> {
         request.partnerPlacement.toLongOrNull()?.let { placement ->
             // There should be no placement with this value.
@@ -561,17 +585,18 @@ class InMobiAdapter : PartnerAdapter {
             }
 
             return suspendCancellableCoroutine { continuation ->
-                inMobiInterstitialAds[request.identifier] = InMobiInterstitial(
-                    context,
-                    placement,
-                    buildFullScreenAdListener(
-                        request = request,
-                        partnerAdListener = partnerAdListener,
-                        continuation = continuation
-                    )
-                ).apply {
-                    load()
-                }
+                inMobiInterstitialAds[request.identifier] =
+                    InMobiInterstitial(
+                        context,
+                        placement,
+                        buildFullScreenAdListener(
+                            request = request,
+                            partnerAdListener = partnerAdListener,
+                            continuation = continuation,
+                        ),
+                    ).apply {
+                        load()
+                    }
             }
         } ?: run {
             PartnerLogController.log(LOAD_FAILED, "Placement is not valid.")
@@ -591,7 +616,7 @@ class InMobiAdapter : PartnerAdapter {
     private fun buildFullScreenAdListener(
         request: PartnerAdLoadRequest,
         partnerAdListener: PartnerAdListener,
-        continuation: CancellableContinuation<Result<PartnerAd>>
+        continuation: CancellableContinuation<Result<PartnerAd>>,
     ): InterstitialAdEventListener {
         fun resumeOnce(result: Result<PartnerAd>) {
             if (continuation.isActive) {
@@ -599,7 +624,10 @@ class InMobiAdapter : PartnerAdapter {
             }
         }
         return object : InterstitialAdEventListener() {
-            override fun onAdDisplayed(ad: InMobiInterstitial, info: AdMetaInfo) {
+            override fun onAdDisplayed(
+                ad: InMobiInterstitial,
+                info: AdMetaInfo,
+            ) {
                 onShowSuccess()
             }
 
@@ -614,53 +642,60 @@ class InMobiAdapter : PartnerAdapter {
                     PartnerAd(
                         ad = ad,
                         details = emptyMap(),
-                        request = request
-                    ), null
+                        request = request,
+                    ),
+                    null,
                 )
                 inMobiInterstitialAds.remove(request.identifier)
             }
 
-            override fun onAdClicked(ad: InMobiInterstitial, map: MutableMap<Any, Any>?) {
+            override fun onAdClicked(
+                ad: InMobiInterstitial,
+                map: MutableMap<Any, Any>?,
+            ) {
                 PartnerLogController.log(DID_CLICK)
                 partnerAdListener.onPartnerAdClicked(
                     PartnerAd(
                         ad = ad,
                         details = emptyMap(),
-                        request = request
-                    )
+                        request = request,
+                    ),
                 )
             }
 
-            override fun onAdLoadSucceeded(ad: InMobiInterstitial, adMetaInfo: AdMetaInfo) {
+            override fun onAdLoadSucceeded(
+                ad: InMobiInterstitial,
+                adMetaInfo: AdMetaInfo,
+            ) {
                 PartnerLogController.log(LOAD_SUCCEEDED)
                 resumeOnce(
                     Result.success(
                         PartnerAd(
                             ad = ad,
                             details = emptyMap(),
-                            request = request
-                        )
-                    )
+                            request = request,
+                        ),
+                    ),
                 )
             }
 
             override fun onAdLoadFailed(
                 ad: InMobiInterstitial,
-                status: InMobiAdRequestStatus
+                status: InMobiAdRequestStatus,
             ) {
                 PartnerLogController.log(
                     LOAD_FAILED,
-                    "Status code: ${status.statusCode}. Message: ${status.message}"
+                    "Status code: ${status.statusCode}. Message: ${status.message}",
                 )
                 inMobiInterstitialAds.remove(request.identifier)
                 resumeOnce(
-                    Result.failure(ChartboostMediationAdException(getChartboostMediationError(status.statusCode)))
+                    Result.failure(ChartboostMediationAdException(getChartboostMediationError(status.statusCode))),
                 )
             }
 
             override fun onRewardsUnlocked(
                 ad: InMobiInterstitial,
-                rewardMap: MutableMap<Any, Any>?
+                rewardMap: MutableMap<Any, Any>?,
             ) {
                 rewardMap?.let {
                     PartnerLogController.log(DID_REWARD)
@@ -668,8 +703,8 @@ class InMobiAdapter : PartnerAdapter {
                         PartnerAd(
                             ad = ad,
                             details = emptyMap(),
-                            request = request
-                        )
+                            request = request,
+                        ),
                     )
                 }
             }
@@ -680,8 +715,8 @@ class InMobiAdapter : PartnerAdapter {
                     PartnerAd(
                         ad = ad,
                         details = emptyMap(),
-                        request = request
-                    )
+                        request = request,
+                    ),
                 )
             }
         }
@@ -713,14 +748,15 @@ class InMobiAdapter : PartnerAdapter {
      *
      * @return The corresponding [ChartboostMediationError].
      */
-    private fun getChartboostMediationError(error: InMobiAdRequestStatus.StatusCode) = when (error) {
-        InMobiAdRequestStatus.StatusCode.INTERNAL_ERROR -> ChartboostMediationError.CM_INTERNAL_ERROR
-        InMobiAdRequestStatus.StatusCode.NETWORK_UNREACHABLE -> ChartboostMediationError.CM_NO_CONNECTIVITY
-        InMobiAdRequestStatus.StatusCode.NO_FILL -> ChartboostMediationError.CM_LOAD_FAILURE_NO_FILL
-        InMobiAdRequestStatus.StatusCode.AD_NO_LONGER_AVAILABLE -> ChartboostMediationError.CM_SHOW_FAILURE_AD_NOT_FOUND
-        InMobiAdRequestStatus.StatusCode.REQUEST_TIMED_OUT -> ChartboostMediationError.CM_LOAD_FAILURE_TIMEOUT
-        InMobiAdRequestStatus.StatusCode.SERVER_ERROR -> ChartboostMediationError.CM_AD_SERVER_ERROR
-        InMobiAdRequestStatus.StatusCode.INVALID_RESPONSE_IN_LOAD -> ChartboostMediationError.CM_LOAD_FAILURE_INVALID_BID_RESPONSE
-        else -> ChartboostMediationError.CM_PARTNER_ERROR
-    }
+    private fun getChartboostMediationError(error: InMobiAdRequestStatus.StatusCode) =
+        when (error) {
+            InMobiAdRequestStatus.StatusCode.INTERNAL_ERROR -> ChartboostMediationError.CM_INTERNAL_ERROR
+            InMobiAdRequestStatus.StatusCode.NETWORK_UNREACHABLE -> ChartboostMediationError.CM_NO_CONNECTIVITY
+            InMobiAdRequestStatus.StatusCode.NO_FILL -> ChartboostMediationError.CM_LOAD_FAILURE_NO_FILL
+            InMobiAdRequestStatus.StatusCode.AD_NO_LONGER_AVAILABLE -> ChartboostMediationError.CM_SHOW_FAILURE_AD_NOT_FOUND
+            InMobiAdRequestStatus.StatusCode.REQUEST_TIMED_OUT -> ChartboostMediationError.CM_LOAD_FAILURE_TIMEOUT
+            InMobiAdRequestStatus.StatusCode.SERVER_ERROR -> ChartboostMediationError.CM_AD_SERVER_ERROR
+            InMobiAdRequestStatus.StatusCode.INVALID_RESPONSE_IN_LOAD -> ChartboostMediationError.CM_LOAD_FAILURE_INVALID_BID_RESPONSE
+            else -> ChartboostMediationError.CM_PARTNER_ERROR
+        }
 }
