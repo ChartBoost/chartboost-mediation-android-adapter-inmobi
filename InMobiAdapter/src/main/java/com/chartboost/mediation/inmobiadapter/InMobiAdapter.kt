@@ -1,6 +1,6 @@
 /*
  * Copyright 2023-2024 Chartboost, Inc.
- * 
+ *
  * Use of this source code is governed by an MIT-style
  * license that can be found in the LICENSE file.
  */
@@ -9,9 +9,9 @@ package com.chartboost.mediation.inmobiadapter
 
 import android.app.Activity
 import android.content.Context
-import com.chartboost.heliumsdk.domain.*
-import com.chartboost.heliumsdk.utils.PartnerLogController
-import com.chartboost.heliumsdk.utils.PartnerLogController.PartnerAdapterEvents.*
+import com.chartboost.chartboostmediationsdk.domain.*
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.*
 import com.inmobi.ads.AdMetaInfo
 import com.inmobi.ads.InMobiAdRequestStatus
 import com.inmobi.ads.InMobiBanner
