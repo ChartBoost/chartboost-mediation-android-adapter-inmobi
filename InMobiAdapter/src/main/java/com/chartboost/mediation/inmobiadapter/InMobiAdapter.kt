@@ -282,8 +282,13 @@ class InMobiAdapter : PartnerAdapter {
         request: PreBidRequest,
     ): Map<String, String> {
         PartnerLogController.log(BIDDER_INFO_FETCH_STARTED)
-        PartnerLogController.log(BIDDER_INFO_FETCH_SUCCEEDED)
-        return emptyMap()
+        InMobiSdk.getToken()?.let { token ->
+            PartnerLogController.log(BIDDER_INFO_FETCH_SUCCEEDED)
+            return mapOf("token" to token)
+        } ?: run {
+            PartnerLogController.log(BIDDER_INFO_FETCH_FAILED)
+            return emptyMap()
+        }
     }
 
     /**
