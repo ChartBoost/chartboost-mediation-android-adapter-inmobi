@@ -38,16 +38,6 @@ import kotlin.coroutines.resume
 class InMobiAdapter : PartnerAdapter {
     companion object {
         /**
-         * Log level option that can be set to alter the output verbosity of the InMobi SDK.
-         */
-        var logLevel = InMobiSdk.LogLevel.NONE
-            set(value) {
-                field = value
-                InMobiSdk.setLogLevel(value)
-                PartnerLogController.log(CUSTOM, "InMobi log level set to $value.")
-            }
-
-        /**
          * Key for parsing the InMobi SDK account ID.
          */
         private const val ACCOUNT_ID_KEY = "account_id"
@@ -57,6 +47,11 @@ class InMobiAdapter : PartnerAdapter {
          */
         private const val TCF_STRING_KEY = "IABTCF_TCString"
     }
+
+    /**
+     * The InMobi adapter configuration.
+     */
+    override var configuration: PartnerAdapterConfiguration = InMobiAdapterConfiguration
 
     /**
      * A lambda to call for successful InMobi ad shows.
@@ -77,39 +72,6 @@ class InMobiAdapter : PartnerAdapter {
      * A map of InMobi interstitial ads keyed by a request identifier.
      */
     private val inMobiInterstitialAds = mutableMapOf<String, InMobiInterstitial>()
-
-    /**
-     * Get the InMobi SDK version.
-     */
-    override val partnerSdkVersion: String
-        get() = InMobiSdk.getVersion()
-
-    /**
-     * Get the InMobi adapter version.
-     *
-     * You may version the adapter using any preferred convention, but it is recommended to apply the
-     * following format if the adapter will be published by Chartboost Mediation:
-     *
-     * Chartboost Mediation.Partner.Adapter
-     *
-     * "Chartboost Mediation" represents the Chartboost Mediation SDK’s major version that is compatible with this adapter. This must be 1 digit.
-     * "Partner" represents the partner SDK’s major.minor.patch.x (where x is optional) version that is compatible with this adapter. This can be 3-4 digits.
-     * "Adapter" represents this adapter’s version (starting with 0), which resets to 0 when the partner SDK’s version changes. This must be 1 digit.
-     */
-    override val adapterVersion: String
-        get() = BuildConfig.CHARTBOOST_MEDIATION_INMOBI_ADAPTER_VERSION
-
-    /**
-     * Get the partner name for internal uses.
-     */
-    override val partnerId: String
-        get() = "inmobi"
-
-    /**
-     * Get the partner name for external uses.
-     */
-    override val partnerDisplayName: String
-        get() = "InMobi"
 
     /**
      * Initialize the InMobi SDK so that it is ready to request ads.
