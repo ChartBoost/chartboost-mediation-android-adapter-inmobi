@@ -500,7 +500,11 @@ class InMobiAdapter : PartnerAdapter {
                                     continuation = continuation,
                                 ),
                             )
-                            load()
+                            request.adm?.toByteArray()?.let {
+                                load(it)
+                            } ?: run {
+                                load()
+                            }
                         }
                     }
                 } ?: run {
@@ -626,7 +630,11 @@ class InMobiAdapter : PartnerAdapter {
                             listener = partnerAdListener,
                         ),
                     ).apply {
-                        load()
+                        request.adm?.toByteArray()?.let {
+                            load(it)
+                        } ?: run {
+                            load()
+                        }
                     }
             }
         } ?: run {
