@@ -500,9 +500,10 @@ class InMobiAdapter : PartnerAdapter {
                                     continuation = continuation,
                                 ),
                             )
-                            request.adm?.toByteArray()?.let {
-                                load(it)
-                            } ?: run {
+                            val admBytes = request.adm?.toByteArray() ?: byteArrayOf()
+                            if (admBytes.isNotEmpty()) {
+                                load(admBytes)
+                            } else {
                                 load()
                             }
                         }
@@ -630,9 +631,10 @@ class InMobiAdapter : PartnerAdapter {
                             listener = partnerAdListener,
                         ),
                     ).apply {
-                        request.adm?.toByteArray()?.let {
-                            load(it)
-                        } ?: run {
+                        val admBytes = request.adm?.toByteArray() ?: byteArrayOf()
+                        if (admBytes.isNotEmpty()) {
+                            load(admBytes)
+                        } else {
                             load()
                         }
                     }
