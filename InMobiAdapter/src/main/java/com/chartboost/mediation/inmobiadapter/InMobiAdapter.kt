@@ -112,7 +112,7 @@ class InMobiAdapter : PartnerAdapter {
                                         error?.let {
                                             PartnerLogController.log(SETUP_FAILED, "${it.message}")
                                             Result.failure(
-                                                ChartboostMediationAdException(ChartboostMediationError.CM_INITIALIZATION_FAILURE_UNKNOWN),
+                                                ChartboostMediationAdException(ChartboostMediationError.InitializationError.Unknown),
                                             )
                                         } ?: run {
                                             Result.success(
@@ -126,7 +126,7 @@ class InMobiAdapter : PartnerAdapter {
                 }
             } ?: run {
             PartnerLogController.log(SETUP_FAILED, "Missing account ID.")
-            return Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_INITIALIZATION_FAILURE_INVALID_CREDENTIALS))
+            return Result.failure(ChartboostMediationAdException(ChartboostMediationError.InitializationError.InvalidCredentials))
         }
     }
 
@@ -258,7 +258,7 @@ class InMobiAdapter : PartnerAdapter {
                 )
             else -> {
                 PartnerLogController.log(LOAD_FAILED)
-                Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_LOAD_FAILURE_UNSUPPORTED_AD_FORMAT))
+                Result.failure(ChartboostMediationAdException(ChartboostMediationError.LoadError.UnsupportedAdFormat))
             }
         }
     }
@@ -303,23 +303,23 @@ class InMobiAdapter : PartnerAdapter {
                                     "Placement: ${partnerAd.request.partnerPlacement}",
                                 )
                                 resumeOnce(
-                                    Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_SHOW_FAILURE_UNKNOWN)),
+                                    Result.failure(ChartboostMediationAdException(ChartboostMediationError.ShowError.Unknown)),
                                 )
                             }
                             ad.show()
                         }
                     } else {
                         PartnerLogController.log(SHOW_FAILED, "Ad is not ready.")
-                        Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_SHOW_FAILURE_AD_NOT_READY))
+                        Result.failure(ChartboostMediationAdException(ChartboostMediationError.ShowError.AdNotReady))
                     }
                 } ?: run {
                     PartnerLogController.log(SHOW_FAILED, "Ad is null.")
-                    Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_SHOW_FAILURE_AD_NOT_FOUND))
+                    Result.failure(ChartboostMediationAdException(ChartboostMediationError.ShowError.AdNotFound))
                 }
             }
             else -> {
                 PartnerLogController.log(SHOW_FAILED)
-                Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_SHOW_FAILURE_UNSUPPORTED_AD_FORMAT))
+                Result.failure(ChartboostMediationAdException(ChartboostMediationError.ShowError.UnsupportedAdFormat))
             }
         }
     }
@@ -407,7 +407,7 @@ class InMobiAdapter : PartnerAdapter {
             // There should be no placement with this value.
             if (placement == 0L) {
                 PartnerLogController.log(LOAD_FAILED)
-                return Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_LOAD_FAILURE_INVALID_PARTNER_PLACEMENT))
+                return Result.failure(ChartboostMediationAdException(ChartboostMediationError.LoadError.InvalidPartnerPlacement))
             }
 
             (context as? Activity)?.let { activity ->
@@ -416,7 +416,7 @@ class InMobiAdapter : PartnerAdapter {
                     // We will check for the banner size and return a failure if the sizes are either 0.
                     if ((size.width == 0) or (size.height == 0)) {
                         PartnerLogController.log(LOAD_FAILED)
-                        return Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_LOAD_FAILURE_INVALID_BANNER_SIZE))
+                        return Result.failure(ChartboostMediationAdException(ChartboostMediationError.LoadError.InvalidBannerSize))
                     }
 
                     return suspendCancellableCoroutine { continuation ->
@@ -436,15 +436,15 @@ class InMobiAdapter : PartnerAdapter {
                     }
                 } ?: run {
                     PartnerLogController.log(LOAD_FAILED, "Size can't be null.")
-                    return (Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_LOAD_FAILURE_INVALID_BANNER_SIZE)))
+                    return (Result.failure(ChartboostMediationAdException(ChartboostMediationError.LoadError.InvalidBannerSize)))
                 }
             } ?: run {
                 PartnerLogController.log(LOAD_FAILED, "Activity context is required.")
-                return (Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_LOAD_FAILURE_ACTIVITY_NOT_FOUND)))
+                return (Result.failure(ChartboostMediationAdException(ChartboostMediationError.LoadError.ActivityNotFound)))
             }
         } ?: run {
             PartnerLogController.log(LOAD_FAILED, "Placement is not valid.")
-            return Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_LOAD_FAILURE_INVALID_PARTNER_PLACEMENT))
+            return Result.failure(ChartboostMediationAdException(ChartboostMediationError.LoadError.InvalidPartnerPlacement))
         }
     }
 
@@ -543,7 +543,7 @@ class InMobiAdapter : PartnerAdapter {
             // There should be no placement with this value.
             if (placement == 0L) {
                 PartnerLogController.log(LOAD_FAILED)
-                return Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_LOAD_FAILURE_INVALID_PARTNER_PLACEMENT))
+                return Result.failure(ChartboostMediationAdException(ChartboostMediationError.LoadError.InvalidPartnerPlacement))
             }
 
             return suspendCancellableCoroutine { continuation ->
@@ -562,7 +562,7 @@ class InMobiAdapter : PartnerAdapter {
             }
         } ?: run {
             PartnerLogController.log(LOAD_FAILED, "Placement is not valid.")
-            return Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_LOAD_FAILURE_INVALID_PARTNER_PLACEMENT))
+            return Result.failure(ChartboostMediationAdException(ChartboostMediationError.LoadError.InvalidPartnerPlacement))
         }
     }
 
@@ -699,7 +699,7 @@ class InMobiAdapter : PartnerAdapter {
             Result.success(partnerAd)
         } ?: run {
             PartnerLogController.log(INVALIDATE_FAILED, "Ad is null.")
-            Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_INVALIDATE_FAILURE_AD_NOT_FOUND))
+            Result.failure(ChartboostMediationAdException(ChartboostMediationError.InvalidateError.AdNotFound))
         }
     }
 
@@ -712,13 +712,13 @@ class InMobiAdapter : PartnerAdapter {
      */
     private fun getChartboostMediationError(error: InMobiAdRequestStatus.StatusCode) =
         when (error) {
-            InMobiAdRequestStatus.StatusCode.INTERNAL_ERROR -> ChartboostMediationError.CM_INTERNAL_ERROR
-            InMobiAdRequestStatus.StatusCode.NETWORK_UNREACHABLE -> ChartboostMediationError.CM_NO_CONNECTIVITY
-            InMobiAdRequestStatus.StatusCode.NO_FILL -> ChartboostMediationError.CM_LOAD_FAILURE_NO_FILL
-            InMobiAdRequestStatus.StatusCode.AD_NO_LONGER_AVAILABLE -> ChartboostMediationError.CM_SHOW_FAILURE_AD_NOT_FOUND
-            InMobiAdRequestStatus.StatusCode.REQUEST_TIMED_OUT -> ChartboostMediationError.CM_LOAD_FAILURE_TIMEOUT
-            InMobiAdRequestStatus.StatusCode.SERVER_ERROR -> ChartboostMediationError.CM_AD_SERVER_ERROR
-            InMobiAdRequestStatus.StatusCode.INVALID_RESPONSE_IN_LOAD -> ChartboostMediationError.CM_LOAD_FAILURE_INVALID_BID_RESPONSE
-            else -> ChartboostMediationError.CM_PARTNER_ERROR
+            InMobiAdRequestStatus.StatusCode.INTERNAL_ERROR -> ChartboostMediationError.OtherError.InternalError
+            InMobiAdRequestStatus.StatusCode.NETWORK_UNREACHABLE -> ChartboostMediationError.OtherError.NoConnectivity
+            InMobiAdRequestStatus.StatusCode.NO_FILL -> ChartboostMediationError.LoadError.NoFill
+            InMobiAdRequestStatus.StatusCode.AD_NO_LONGER_AVAILABLE -> ChartboostMediationError.ShowError.AdNotFound
+            InMobiAdRequestStatus.StatusCode.REQUEST_TIMED_OUT -> ChartboostMediationError.LoadError.AdRequestTimeout
+            InMobiAdRequestStatus.StatusCode.SERVER_ERROR -> ChartboostMediationError.OtherError.AdServerError
+            InMobiAdRequestStatus.StatusCode.INVALID_RESPONSE_IN_LOAD -> ChartboostMediationError.LoadError.InvalidBidResponse
+            else -> ChartboostMediationError.OtherError.PartnerError
         }
 }
