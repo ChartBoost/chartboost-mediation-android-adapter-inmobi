@@ -11,7 +11,34 @@ import android.app.Activity
 import android.content.Context
 import com.chartboost.chartboostmediationsdk.domain.*
 import com.chartboost.chartboostmediationsdk.utils.PartnerLogController
-import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.*
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.BIDDER_INFO_FETCH_STARTED
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.BIDDER_INFO_FETCH_SUCCEEDED
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.CUSTOM
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.DID_CLICK
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.DID_DISMISS
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.DID_REWARD
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.DID_TRACK_IMPRESSION
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.GDPR_CONSENT_DENIED
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.GDPR_CONSENT_GRANTED
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.GDPR_CONSENT_UNKNOWN
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.INVALIDATE_FAILED
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.INVALIDATE_STARTED
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.INVALIDATE_SUCCEEDED
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.LOAD_FAILED
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.LOAD_STARTED
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.LOAD_SUCCEEDED
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.SETUP_FAILED
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.SETUP_STARTED
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.SETUP_SUCCEEDED
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.SHOW_FAILED
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.SHOW_STARTED
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.SHOW_SUCCEEDED
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.USER_IS_NOT_UNDERAGE
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.USER_IS_UNDERAGE
+import com.chartboost.core.consent.ConsentKey
+import com.chartboost.core.consent.ConsentKeys
+import com.chartboost.core.consent.ConsentValue
+import com.chartboost.core.consent.ConsentValues
 import com.inmobi.ads.AdMetaInfo
 import com.inmobi.ads.InMobiAdRequestStatus
 import com.inmobi.ads.InMobiBanner
@@ -41,11 +68,6 @@ class InMobiAdapter : PartnerAdapter {
          * Key for parsing the InMobi SDK account ID.
          */
         private const val ACCOUNT_ID_KEY = "account_id"
-
-        /**
-         * Key for getting the IAB TCFv2 String.
-         */
-        private const val TCF_STRING_KEY = "IABTCF_TCString"
     }
 
     /**
@@ -64,9 +86,14 @@ class InMobiAdapter : PartnerAdapter {
     private var onShowError: () -> Unit = {}
 
     /**
-     * Indicate whether GDPR currently applies to the user.
+     * Whether GDPR consent was given.
      */
-    private var gdprApplies: Boolean? = null
+    private var gdprConsentGiven: String? = null
+
+    /**
+     * The TCF String.
+     */
+    private var tcfString: String? = null
 
     /**
      * A map of InMobi interstitial ads keyed by a request identifier.
@@ -84,7 +111,7 @@ class InMobiAdapter : PartnerAdapter {
     override suspend fun setUp(
         context: Context,
         partnerConfiguration: PartnerConfiguration,
-    ): Result<Unit> {
+    ): Result<Map<String, Any>> {
         PartnerLogController.log(SETUP_STARTED)
 
         Json.decodeFromJsonElement<String>(
@@ -92,11 +119,12 @@ class InMobiAdapter : PartnerAdapter {
         ).trim()
             .takeIf { it.isNotEmpty() }
             ?.let { accountId ->
-                val gdprConsent = gdprApplies?.let { buildGdprJsonObject(it, context) }
+                setConsents(context, partnerConfiguration.consents, partnerConfiguration.consents.keys)
+                val gdprConsent = buildGdprJsonObject()
                 inMobiInterstitialAds.clear()
 
                 return suspendCancellableCoroutine { continuation ->
-                    fun resumeOnce(result: Result<Unit>) {
+                    fun resumeOnce(result: Result<Map<String, Any>>) {
                         if (continuation.isActive) {
                             continuation.resume(result)
                         }
@@ -115,9 +143,8 @@ class InMobiAdapter : PartnerAdapter {
                                                 ChartboostMediationAdException(ChartboostMediationError.InitializationError.Unknown),
                                             )
                                         } ?: run {
-                                            Result.success(
-                                                PartnerLogController.log(SETUP_SUCCEEDED),
-                                            )
+                                            PartnerLogController.log(SETUP_SUCCEEDED)
+                                            Result.success(emptyMap())
                                         },
                                     )
                                 }
@@ -131,80 +158,20 @@ class InMobiAdapter : PartnerAdapter {
     }
 
     /**
-     * Notify the InMobi SDK of the GDPR applicability and consent status.
-     *
-     * @param context The current [Context].
-     * @param applies True if GDPR applies, false otherwise.
-     * @param gdprConsentStatus The user's GDPR consent status.
-     */
-    override fun setGdpr(
-        context: Context,
-        applies: Boolean?,
-        gdprConsentStatus: GdprConsentStatus,
-    ) {
-        PartnerLogController.log(
-            when (applies) {
-                true -> GDPR_APPLICABLE
-                false -> GDPR_NOT_APPLICABLE
-                else -> GDPR_UNKNOWN
-            },
-        )
-
-        PartnerLogController.log(
-            when (gdprConsentStatus) {
-                GdprConsentStatus.GDPR_CONSENT_UNKNOWN -> GDPR_CONSENT_UNKNOWN
-                GdprConsentStatus.GDPR_CONSENT_GRANTED -> GDPR_CONSENT_GRANTED
-                GdprConsentStatus.GDPR_CONSENT_DENIED -> GDPR_CONSENT_DENIED
-            },
-        )
-
-        this.gdprApplies = applies
-
-        if (applies == true) {
-            InMobiSdk.setPartnerGDPRConsent(
-                buildGdprJsonObject(GdprConsentStatus.GDPR_CONSENT_GRANTED == gdprConsentStatus, context),
-            )
-        }
-    }
-
-    /**
-     * Notify InMobi of the CCPA compliance.
-     *
-     * @param context The current [Context].
-     * @param hasGrantedCcpaConsent True if the user has granted CCPA consent, false otherwise.
-     * @param privacyString The CCPA privacy String.
-     */
-    override fun setCcpaConsent(
-        context: Context,
-        hasGrantedCcpaConsent: Boolean,
-        privacyString: String,
-    ) {
-        PartnerLogController.log(
-            if (hasGrantedCcpaConsent) {
-                CCPA_CONSENT_GRANTED
-            } else {
-                CCPA_CONSENT_DENIED
-            },
-        )
-
-        // NO-OP: InMobi handles CCPA on their dashboard.
-    }
-
-    /**
      * Notify InMobi of the COPPA subjectivity.
      *
      * @param context The current [Context].
-     * @param isSubjectToCoppa True if the user is subject to COPPA, false otherwise.
+     * @param isUserUnderage True if the user is subject to COPPA, false otherwise.
      */
-    override fun setUserSubjectToCoppa(
+    override fun setIsUserUnderage(
         context: Context,
-        isSubjectToCoppa: Boolean,
+        isUserUnderage: Boolean,
     ) {
         PartnerLogController.log(
-            if (isSubjectToCoppa) {
-                COPPA_SUBJECT
+            if (isUserUnderage) {
+                USER_IS_UNDERAGE
             } else {
-                COPPA_NOT_SUBJECT
+                USER_IS_NOT_UNDERAGE
             },
         )
 
@@ -215,17 +182,17 @@ class InMobiAdapter : PartnerAdapter {
      * Get a bid token if network bidding is supported.
      *
      * @param context The current [Context].
-     * @param request The [PreBidRequest] instance containing relevant data for the current bid request.
+     * @param request The [PartnerAdPreBidRequest] instance containing relevant data for the current bid request.
      *
      * @return A Map of biddable token Strings.
      */
     override suspend fun fetchBidderInformation(
         context: Context,
-        request: PreBidRequest,
-    ): Map<String, String> {
+        request: PartnerAdPreBidRequest,
+    ): Result<Map<String, String>> {
         PartnerLogController.log(BIDDER_INFO_FETCH_STARTED)
         PartnerLogController.log(BIDDER_INFO_FETCH_SUCCEEDED)
-        return emptyMap()
+        return Result.success(emptyMap())
     }
 
     /**
@@ -244,13 +211,13 @@ class InMobiAdapter : PartnerAdapter {
     ): Result<PartnerAd> {
         PartnerLogController.log(LOAD_STARTED)
 
-        return when (request.format.key) {
-            AdFormat.BANNER.key, "adaptive_banner" -> {
+        return when (request.format) {
+            PartnerAdFormats.BANNER -> {
                 withContext(Main) {
                     loadBannerAd(context, request, partnerAdListener)
                 }
             }
-            AdFormat.INTERSTITIAL.key, AdFormat.REWARDED.key ->
+            PartnerAdFormats.INTERSTITIAL, PartnerAdFormats.REWARDED ->
                 loadFullScreenAd(
                     context,
                     request,
@@ -277,13 +244,13 @@ class InMobiAdapter : PartnerAdapter {
     ): Result<PartnerAd> {
         PartnerLogController.log(SHOW_STARTED)
 
-        return when (partnerAd.request.format.key) {
-            AdFormat.BANNER.key, "adaptive_banner" -> {
+        return when (partnerAd.request.format) {
+            PartnerAdFormats.BANNER -> {
                 // Banner ads do not have a separate "show" mechanism.
                 PartnerLogController.log(SHOW_SUCCEEDED)
                 Result.success(partnerAd)
             }
-            AdFormat.INTERSTITIAL.key, AdFormat.REWARDED.key -> {
+            PartnerAdFormats.INTERSTITIAL, PartnerAdFormats.REWARDED -> {
                 (partnerAd.ad as? InMobiInterstitial)?.let { ad ->
                     if (ad.isReady()) {
                         suspendCancellableCoroutine { continuation ->
@@ -334,8 +301,8 @@ class InMobiAdapter : PartnerAdapter {
     override suspend fun invalidate(partnerAd: PartnerAd): Result<PartnerAd> {
         PartnerLogController.log(INVALIDATE_STARTED)
 
-        return when (partnerAd.request.format.key) {
-            AdFormat.BANNER.key, "adaptive_banner" -> destroyBannerAd(partnerAd)
+        return when (partnerAd.request.format) {
+            PartnerAdFormats.BANNER -> destroyBannerAd(partnerAd)
             else -> {
                 // InMobi does not have destroy methods for their fullscreen ads.
                 // Remove show result for this partner ad. No longer needed.
@@ -346,28 +313,40 @@ class InMobiAdapter : PartnerAdapter {
         }
     }
 
+    override fun setConsents(
+        context: Context,
+        consents: Map<ConsentKey, ConsentValue>,
+        modifiedKeys: Set<ConsentKey>
+    ) {
+        gdprConsentGiven = consents[ConsentKeys.GDPR_CONSENT_GIVEN]
+        PartnerLogController.log(
+            when (gdprConsentGiven) {
+                ConsentValues.GRANTED -> GDPR_CONSENT_GRANTED
+                ConsentValues.DENIED -> GDPR_CONSENT_DENIED
+                else -> GDPR_CONSENT_UNKNOWN
+            }
+        )
+
+        tcfString = consents[ConsentKeys.TCF]
+    }
+
     /**
      * Build a [JSONObject] that will be passed to the InMobi SDK for GDPR during [setUp].
-     *
-     * @param gdprConsent A Boolean indicating whether GDPR consent is granted or not.
-     * @param context The current [Context].
      *
      * @return a [JSONObject] object as to whether GDPR consent is granted or not.
      */
     private fun buildGdprJsonObject(
-        gdprConsent: Boolean,
-        context: Context,
     ): JSONObject {
         return JSONObject().apply {
             try {
-                put(InMobiSdk.IM_GDPR_CONSENT_AVAILABLE, gdprConsent)
-                put("gdpr", if (gdprApplies == true) "1" else "0")
-                val tcfString = getTcfString(context)
-                if (tcfString.isNotEmpty()) {
-                    put(InMobiSdk.IM_GDPR_CONSENT_IAB, tcfString)
-                } else {
-                    PartnerLogController.log(CUSTOM, "TCFv2 String is empty or was not found.")
+                gdprConsentGiven?.let {
+                    if (it != ConsentValues.DOES_NOT_APPLY) {
+                        put(InMobiSdk.IM_GDPR_CONSENT_AVAILABLE, it == ConsentValues.GRANTED)
+                    }
                 }
+                tcfString?.let {
+                    put(InMobiSdk.IM_GDPR_CONSENT_IAB, it)
+                } ?: PartnerLogController.log(CUSTOM, "TCFv2 String is empty or was not found.")
             } catch (error: JSONException) {
                 PartnerLogController.log(
                     CUSTOM,
@@ -375,18 +354,6 @@ class InMobiAdapter : PartnerAdapter {
                 )
             }
         }
-    }
-
-    /**
-     * Get the TCFv2 String from shared preferences.
-     *
-     * @param context The current [Context].
-     *
-     * @return The TCFv2 String or an empty string if not found.
-     */
-    private fun getTcfString(context: Context): String {
-        val sharedPrefs = context.getSharedPreferences("${context.packageName}_preferences", Context.MODE_PRIVATE)
-        return sharedPrefs.getString(TCF_STRING_KEY, "") ?: ""
     }
 
     /**
@@ -411,7 +378,7 @@ class InMobiAdapter : PartnerAdapter {
             }
 
             (context as? Activity)?.let { activity ->
-                request.size?.let { size ->
+                request.bannerSize?.size?.let { size ->
                     // InMobi silently fails and causes the coroutine from returning a result.
                     // We will check for the banner size and return a failure if the sizes are either 0.
                     if ((size.width == 0) or (size.height == 0)) {
