@@ -1,6 +1,6 @@
 /*
  * Copyright 2023-2024 Chartboost, Inc.
- * 
+ *
  * Use of this source code is governed by an MIT-style
  * license that can be found in the LICENSE file.
  */
@@ -282,7 +282,14 @@ class InMobiAdapter : PartnerAdapter {
         request: PreBidRequest,
     ): Map<String, String> {
         PartnerLogController.log(BIDDER_INFO_FETCH_STARTED)
-        InMobiSdk.getToken()?.let { token ->
+
+        val extras =
+            mapOf(
+                "tp" to "c_chartboost",
+                "tp-ver" to com.chartboost.heliumsdk.BuildConfig.CHARTBOOST_MEDIATION_VERSION,
+            )
+
+        InMobiSdk.getToken(extras = extras, keywords = null)?.let { token ->
             PartnerLogController.log(BIDDER_INFO_FETCH_SUCCEEDED)
             return mapOf("token" to token)
         } ?: run {
@@ -675,7 +682,7 @@ class InMobiAdapter : PartnerAdapter {
         private val continuationRef: WeakReference<CancellableContinuation<Result<PartnerAd>>>,
         private val request: PartnerAdLoadRequest,
         private val listener: PartnerAdListener,
-    ): InterstitialAdEventListener() {
+    ) : InterstitialAdEventListener() {
         fun resumeOnce(result: Result<PartnerAd>) {
             continuationRef.get()?.let {
                 if (it.isActive) {
