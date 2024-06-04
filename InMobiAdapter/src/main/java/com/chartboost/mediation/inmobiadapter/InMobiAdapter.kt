@@ -316,7 +316,7 @@ class InMobiAdapter : PartnerAdapter {
     override fun setConsents(
         context: Context,
         consents: Map<ConsentKey, ConsentValue>,
-        modifiedKeys: Set<ConsentKey>
+        modifiedKeys: Set<ConsentKey>,
     ) {
         gdprConsentGiven = consents[ConsentKeys.GDPR_CONSENT_GIVEN]
         PartnerLogController.log(
@@ -324,7 +324,7 @@ class InMobiAdapter : PartnerAdapter {
                 ConsentValues.GRANTED -> GDPR_CONSENT_GRANTED
                 ConsentValues.DENIED -> GDPR_CONSENT_DENIED
                 else -> GDPR_CONSENT_UNKNOWN
-            }
+            },
         )
 
         tcfString = consents[ConsentKeys.TCF]
@@ -335,8 +335,7 @@ class InMobiAdapter : PartnerAdapter {
      *
      * @return a [JSONObject] object as to whether GDPR consent is granted or not.
      */
-    private fun buildGdprJsonObject(
-    ): JSONObject {
+    private fun buildGdprJsonObject(): JSONObject {
         return JSONObject().apply {
             try {
                 gdprConsentGiven?.let {
