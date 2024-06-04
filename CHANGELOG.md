@@ -5,8 +5,6 @@ Adapters are compatible with any Chartboost Mediation SDK version within that ma
 
 ### 5.10.6.7.0
 - This version of the adapter has been certified with InMobi SDK 10.6.7.
-
-### 5.10.6.2.0
 - This version of the adapter supports Chartboost Mediation SDK version 5.+.
 
 ### 4.10.6.2.0
