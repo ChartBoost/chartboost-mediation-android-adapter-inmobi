@@ -12,7 +12,7 @@ The Chartboost Mediation InMobi adapter mediates InMobi via the Chartboost Media
 ## Integration
 In your `build.gradle`, add the following entry:
 ```
-    implementation "com.chartboost:chartboost-mediation-adapter-inmobi:4.10.7.3.0"
+    implementation "com.chartboost:chartboost-mediation-adapter-inmobi:4.10.7.4.0"
 ```
 
 ## Contributions
