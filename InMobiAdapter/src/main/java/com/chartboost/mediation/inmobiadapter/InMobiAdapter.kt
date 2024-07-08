@@ -9,6 +9,7 @@ package com.chartboost.mediation.inmobiadapter
 
 import android.app.Activity
 import android.content.Context
+import com.chartboost.chartboostmediationsdk.ChartboostMediationSdk
 import com.chartboost.chartboostmediationsdk.domain.*
 import com.chartboost.chartboostmediationsdk.utils.PartnerLogController
 import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.BIDDER_INFO_FETCH_STARTED
@@ -94,14 +95,14 @@ class InMobiAdapter : PartnerAdapter {
          */
         internal fun getChartboostMediationError(error: InMobiAdRequestStatus.StatusCode) =
             when (error) {
-                InMobiAdRequestStatus.StatusCode.INTERNAL_ERROR -> ChartboostMediationError.CM_INTERNAL_ERROR
-                InMobiAdRequestStatus.StatusCode.NETWORK_UNREACHABLE -> ChartboostMediationError.CM_NO_CONNECTIVITY
-                InMobiAdRequestStatus.StatusCode.NO_FILL -> ChartboostMediationError.CM_LOAD_FAILURE_NO_FILL
-                InMobiAdRequestStatus.StatusCode.AD_NO_LONGER_AVAILABLE -> ChartboostMediationError.CM_SHOW_FAILURE_AD_NOT_FOUND
-                InMobiAdRequestStatus.StatusCode.REQUEST_TIMED_OUT -> ChartboostMediationError.CM_LOAD_FAILURE_TIMEOUT
-                InMobiAdRequestStatus.StatusCode.SERVER_ERROR -> ChartboostMediationError.CM_AD_SERVER_ERROR
-                InMobiAdRequestStatus.StatusCode.INVALID_RESPONSE_IN_LOAD -> ChartboostMediationError.CM_LOAD_FAILURE_INVALID_BID_RESPONSE
-                else -> ChartboostMediationError.CM_PARTNER_ERROR
+                InMobiAdRequestStatus.StatusCode.INTERNAL_ERROR -> ChartboostMediationError.OtherError.InternalError
+                InMobiAdRequestStatus.StatusCode.NETWORK_UNREACHABLE -> ChartboostMediationError.OtherError.NoConnectivity
+                InMobiAdRequestStatus.StatusCode.NO_FILL -> ChartboostMediationError.LoadError.NoFill
+                InMobiAdRequestStatus.StatusCode.AD_NO_LONGER_AVAILABLE -> ChartboostMediationError.ShowError.AdNotFound
+                InMobiAdRequestStatus.StatusCode.REQUEST_TIMED_OUT -> ChartboostMediationError.LoadError.AdRequestTimeout
+                InMobiAdRequestStatus.StatusCode.SERVER_ERROR -> ChartboostMediationError.OtherError.AdServerError
+                InMobiAdRequestStatus.StatusCode.INVALID_RESPONSE_IN_LOAD -> ChartboostMediationError.LoadError.InvalidBidResponse
+                else -> ChartboostMediationError.OtherError.PartnerError
             }
 
         /**
@@ -220,15 +221,15 @@ class InMobiAdapter : PartnerAdapter {
         val extras =
             mapOf(
                 "tp" to "c_chartboost",
-                "tp-ver" to com.chartboost.heliumsdk.BuildConfig.CHARTBOOST_MEDIATION_VERSION,
+                "tp-ver" to ChartboostMediationSdk.getVersion(),
             )
 
         InMobiSdk.getToken(extras = extras, keywords = null)?.let { token ->
             PartnerLogController.log(BIDDER_INFO_FETCH_SUCCEEDED)
-            return mapOf("token" to token)
+            return Result.success(mapOf("token" to token))
         } ?: run {
-            PartnerLogController.log(BIDDER_INFO_FETCH_FAILED)
-            return emptyMap()
+            PartnerLogController.log(PartnerLogController.PartnerAdapterEvents.BIDDER_INFO_FETCH_FAILED)
+            return Result.success(emptyMap())
         }
     }
 
