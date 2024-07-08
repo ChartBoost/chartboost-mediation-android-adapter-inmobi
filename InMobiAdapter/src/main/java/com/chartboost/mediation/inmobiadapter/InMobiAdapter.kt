@@ -72,11 +72,6 @@ class InMobiAdapter : PartnerAdapter {
         private const val ACCOUNT_ID_KEY = "account_id"
 
         /**
-         * Key for getting the IAB TCFv2 String.
-         */
-        private const val TCF_STRING_KEY = "IABTCF_TCString"
-
-        /**
          * A lambda to call for successful InMobi ad shows.
          */
         internal var onShowSuccess: () -> Unit = {}
