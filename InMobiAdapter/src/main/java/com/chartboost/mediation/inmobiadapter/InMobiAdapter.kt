@@ -9,6 +9,7 @@ package com.chartboost.mediation.inmobiadapter
 
 import android.app.Activity
 import android.content.Context
+import com.chartboost.chartboostmediationsdk.ChartboostMediationSdk
 import com.chartboost.chartboostmediationsdk.domain.*
 import com.chartboost.chartboostmediationsdk.utils.PartnerLogController
 import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.BIDDER_INFO_FETCH_STARTED
@@ -56,6 +57,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.decodeFromJsonElement
 import org.json.JSONException
 import org.json.JSONObject
+import java.lang.ref.WeakReference
 import kotlin.coroutines.Continuation
 import kotlin.coroutines.resume
 
@@ -68,22 +70,46 @@ class InMobiAdapter : PartnerAdapter {
          * Key for parsing the InMobi SDK account ID.
          */
         private const val ACCOUNT_ID_KEY = "account_id"
+
+        /**
+         * A lambda to call for successful InMobi ad shows.
+         */
+        internal var onShowSuccess: () -> Unit = {}
+
+        /**
+         * A lambda to call for failed InMobi ad shows.
+         */
+        internal var onShowError: () -> Unit = {}
+
+        /**
+         * Convert a given InMobi error code into a [ChartboostMediationError].
+         *
+         * @param error The InMobi error code.
+         *
+         * @return The corresponding [ChartboostMediationError].
+         */
+        internal fun getChartboostMediationError(error: InMobiAdRequestStatus.StatusCode) =
+            when (error) {
+                InMobiAdRequestStatus.StatusCode.INTERNAL_ERROR -> ChartboostMediationError.OtherError.InternalError
+                InMobiAdRequestStatus.StatusCode.NETWORK_UNREACHABLE -> ChartboostMediationError.OtherError.NoConnectivity
+                InMobiAdRequestStatus.StatusCode.NO_FILL -> ChartboostMediationError.LoadError.NoFill
+                InMobiAdRequestStatus.StatusCode.AD_NO_LONGER_AVAILABLE -> ChartboostMediationError.ShowError.AdNotFound
+                InMobiAdRequestStatus.StatusCode.REQUEST_TIMED_OUT -> ChartboostMediationError.LoadError.AdRequestTimeout
+                InMobiAdRequestStatus.StatusCode.SERVER_ERROR -> ChartboostMediationError.OtherError.AdServerError
+                InMobiAdRequestStatus.StatusCode.INVALID_RESPONSE_IN_LOAD -> ChartboostMediationError.LoadError.InvalidBidResponse
+                else -> ChartboostMediationError.OtherError.PartnerError
+            }
+
+        /**
+         * A map of InMobi interstitial ads keyed by a request identifier.
+         */
+        internal val inMobiInterstitialAds = mutableMapOf<String, InMobiInterstitial>()
     }
 
     /**
      * The InMobi adapter configuration.
      */
     override var configuration: PartnerAdapterConfiguration = InMobiAdapterConfiguration
-
-    /**
-     * A lambda to call for successful InMobi ad shows.
-     */
-    private var onShowSuccess: () -> Unit = {}
-
-    /**
-     * A lambda to call for failed InMobi ad shows.
-     */
-    private var onShowError: () -> Unit = {}
 
     /**
      * Whether GDPR consent was given.
@@ -94,11 +120,6 @@ class InMobiAdapter : PartnerAdapter {
      * The TCF String.
      */
     private var tcfString: String? = null
-
-    /**
-     * A map of InMobi interstitial ads keyed by a request identifier.
-     */
-    private val inMobiInterstitialAds = mutableMapOf<String, InMobiInterstitial>()
 
     /**
      * Initialize the InMobi SDK so that it is ready to request ads.
@@ -191,8 +212,20 @@ class InMobiAdapter : PartnerAdapter {
         request: PartnerAdPreBidRequest,
     ): Result<Map<String, String>> {
         PartnerLogController.log(BIDDER_INFO_FETCH_STARTED)
-        PartnerLogController.log(BIDDER_INFO_FETCH_SUCCEEDED)
-        return Result.success(emptyMap())
+
+        val extras =
+            mapOf(
+                "tp" to "c_chartboost",
+                "tp-ver" to ChartboostMediationSdk.getVersion(),
+            )
+
+        InMobiSdk.getToken(extras = extras, keywords = null)?.let { token ->
+            PartnerLogController.log(BIDDER_INFO_FETCH_SUCCEEDED)
+            return Result.success(mapOf("token" to token))
+        } ?: run {
+            PartnerLogController.log(PartnerLogController.PartnerAdapterEvents.BIDDER_INFO_FETCH_FAILED)
+            return Result.success(emptyMap())
+        }
     }
 
     /**
@@ -254,9 +287,15 @@ class InMobiAdapter : PartnerAdapter {
                 (partnerAd.ad as? InMobiInterstitial)?.let { ad ->
                     if (ad.isReady()) {
                         suspendCancellableCoroutine { continuation ->
+                            val weakContinuationRef = WeakReference(continuation)
+
                             fun resumeOnce(result: Result<PartnerAd>) {
-                                if (continuation.isActive) {
-                                    continuation.resume(result)
+                                weakContinuationRef.get()?.let {
+                                    if (it.isActive) {
+                                        it.resume(result)
+                                    }
+                                } ?: run {
+                                    PartnerLogController.log(SHOW_FAILED, "Unable to resume continuation once. Continuation is null.")
                                 }
                             }
                             onShowSuccess = {
@@ -397,7 +436,12 @@ class InMobiAdapter : PartnerAdapter {
                                     continuation = continuation,
                                 ),
                             )
-                            load()
+                            val admBytes = request.adm?.toByteArray() ?: byteArrayOf()
+                            if (admBytes.isNotEmpty()) {
+                                load(admBytes)
+                            } else {
+                                load()
+                            }
                         }
                     }
                 } ?: run {
@@ -517,136 +561,23 @@ class InMobiAdapter : PartnerAdapter {
                     InMobiInterstitial(
                         context,
                         placement,
-                        buildFullScreenAdListener(
+                        InterstitialAdListener(
+                            WeakReference(continuation),
                             request = request,
-                            partnerAdListener = partnerAdListener,
-                            continuation = continuation,
+                            listener = partnerAdListener,
                         ),
                     ).apply {
-                        load()
+                        val admBytes = request.adm?.toByteArray() ?: byteArrayOf()
+                        if (admBytes.isNotEmpty()) {
+                            load(admBytes)
+                        } else {
+                            load()
+                        }
                     }
             }
         } ?: run {
             PartnerLogController.log(LOAD_FAILED, "Placement is not valid.")
             return Result.failure(ChartboostMediationAdException(ChartboostMediationError.LoadError.InvalidPartnerPlacement))
-        }
-    }
-
-    /**
-     * Build a [InterstitialAdEventListener] listener and return it.
-     *
-     * @param request An [PartnerAdLoadRequest] instance containing relevant data for the current ad load call.
-     * @param partnerAdListener A [PartnerAdListener] to notify Chartboost Mediation of ad events.
-     * @param continuation A [Continuation] to notify Chartboost Mediation of load success or failure.
-     *
-     * @return A built [InterstitialAdEventListener] listener.
-     */
-    private fun buildFullScreenAdListener(
-        request: PartnerAdLoadRequest,
-        partnerAdListener: PartnerAdListener,
-        continuation: CancellableContinuation<Result<PartnerAd>>,
-    ): InterstitialAdEventListener {
-        fun resumeOnce(result: Result<PartnerAd>) {
-            if (continuation.isActive) {
-                continuation.resume(result)
-            }
-        }
-        return object : InterstitialAdEventListener() {
-            override fun onAdDisplayed(
-                ad: InMobiInterstitial,
-                info: AdMetaInfo,
-            ) {
-                onShowSuccess()
-            }
-
-            override fun onAdDisplayFailed(ad: InMobiInterstitial) {
-                onShowError()
-                inMobiInterstitialAds.remove(request.identifier)
-            }
-
-            override fun onAdDismissed(ad: InMobiInterstitial) {
-                PartnerLogController.log(DID_DISMISS)
-                partnerAdListener.onPartnerAdDismissed(
-                    PartnerAd(
-                        ad = ad,
-                        details = emptyMap(),
-                        request = request,
-                    ),
-                    null,
-                )
-                inMobiInterstitialAds.remove(request.identifier)
-            }
-
-            override fun onAdClicked(
-                ad: InMobiInterstitial,
-                map: MutableMap<Any, Any>?,
-            ) {
-                PartnerLogController.log(DID_CLICK)
-                partnerAdListener.onPartnerAdClicked(
-                    PartnerAd(
-                        ad = ad,
-                        details = emptyMap(),
-                        request = request,
-                    ),
-                )
-            }
-
-            override fun onAdLoadSucceeded(
-                ad: InMobiInterstitial,
-                adMetaInfo: AdMetaInfo,
-            ) {
-                PartnerLogController.log(LOAD_SUCCEEDED)
-                resumeOnce(
-                    Result.success(
-                        PartnerAd(
-                            ad = ad,
-                            details = emptyMap(),
-                            request = request,
-                        ),
-                    ),
-                )
-            }
-
-            override fun onAdLoadFailed(
-                ad: InMobiInterstitial,
-                status: InMobiAdRequestStatus,
-            ) {
-                PartnerLogController.log(
-                    LOAD_FAILED,
-                    "Status code: ${status.statusCode}. Message: ${status.message}",
-                )
-                inMobiInterstitialAds.remove(request.identifier)
-                resumeOnce(
-                    Result.failure(ChartboostMediationAdException(getChartboostMediationError(status.statusCode))),
-                )
-            }
-
-            override fun onRewardsUnlocked(
-                ad: InMobiInterstitial,
-                rewardMap: MutableMap<Any, Any>?,
-            ) {
-                rewardMap?.let {
-                    PartnerLogController.log(DID_REWARD)
-                    partnerAdListener.onPartnerAdRewarded(
-                        PartnerAd(
-                            ad = ad,
-                            details = emptyMap(),
-                            request = request,
-                        ),
-                    )
-                }
-            }
-
-            override fun onAdImpression(ad: InMobiInterstitial) {
-                PartnerLogController.log(DID_TRACK_IMPRESSION)
-                partnerAdListener.onPartnerAdImpression(
-                    PartnerAd(
-                        ad = ad,
-                        details = emptyMap(),
-                        request = request,
-                    ),
-                )
-            }
         }
     }
 
@@ -669,22 +600,115 @@ class InMobiAdapter : PartnerAdapter {
         }
     }
 
-    /**
-     * Convert a given InMobi error code into a [ChartboostMediationError].
-     *
-     * @param error The InMobi error code.
-     *
-     * @return The corresponding [ChartboostMediationError].
-     */
-    private fun getChartboostMediationError(error: InMobiAdRequestStatus.StatusCode) =
-        when (error) {
-            InMobiAdRequestStatus.StatusCode.INTERNAL_ERROR -> ChartboostMediationError.OtherError.InternalError
-            InMobiAdRequestStatus.StatusCode.NETWORK_UNREACHABLE -> ChartboostMediationError.OtherError.NoConnectivity
-            InMobiAdRequestStatus.StatusCode.NO_FILL -> ChartboostMediationError.LoadError.NoFill
-            InMobiAdRequestStatus.StatusCode.AD_NO_LONGER_AVAILABLE -> ChartboostMediationError.ShowError.AdNotFound
-            InMobiAdRequestStatus.StatusCode.REQUEST_TIMED_OUT -> ChartboostMediationError.LoadError.AdRequestTimeout
-            InMobiAdRequestStatus.StatusCode.SERVER_ERROR -> ChartboostMediationError.OtherError.AdServerError
-            InMobiAdRequestStatus.StatusCode.INVALID_RESPONSE_IN_LOAD -> ChartboostMediationError.LoadError.InvalidBidResponse
-            else -> ChartboostMediationError.OtherError.PartnerError
+    private class InterstitialAdListener(
+        private val continuationRef: WeakReference<CancellableContinuation<Result<PartnerAd>>>,
+        private val request: PartnerAdLoadRequest,
+        private val listener: PartnerAdListener,
+    ) : InterstitialAdEventListener() {
+        fun resumeOnce(result: Result<PartnerAd>) {
+            continuationRef.get()?.let {
+                if (it.isActive) {
+                    it.resume(result)
+                }
+            } ?: run {
+                PartnerLogController.log(LOAD_FAILED, "Unable to resume continuation. Continuation is null.")
+            }
         }
+
+        override fun onAdDisplayed(
+            ad: InMobiInterstitial,
+            info: AdMetaInfo,
+        ) {
+            onShowSuccess()
+        }
+
+        override fun onAdDisplayFailed(ad: InMobiInterstitial) {
+            onShowError()
+            inMobiInterstitialAds.remove(request.identifier)
+        }
+
+        override fun onAdDismissed(ad: InMobiInterstitial) {
+            PartnerLogController.log(DID_DISMISS)
+            listener.onPartnerAdDismissed(
+                PartnerAd(
+                    ad = ad,
+                    details = emptyMap(),
+                    request = request,
+                ),
+                null,
+            )
+            inMobiInterstitialAds.remove(request.identifier)
+        }
+
+        override fun onAdClicked(
+            ad: InMobiInterstitial,
+            map: MutableMap<Any, Any>?,
+        ) {
+            PartnerLogController.log(DID_CLICK)
+            listener.onPartnerAdClicked(
+                PartnerAd(
+                    ad = ad,
+                    details = emptyMap(),
+                    request = request,
+                ),
+            )
+        }
+
+        override fun onAdLoadSucceeded(
+            ad: InMobiInterstitial,
+            adMetaInfo: AdMetaInfo,
+        ) {
+            PartnerLogController.log(LOAD_SUCCEEDED)
+            resumeOnce(
+                Result.success(
+                    PartnerAd(
+                        ad = ad,
+                        details = emptyMap(),
+                        request = request,
+                    ),
+                ),
+            )
+        }
+
+        override fun onAdLoadFailed(
+            ad: InMobiInterstitial,
+            status: InMobiAdRequestStatus,
+        ) {
+            PartnerLogController.log(
+                LOAD_FAILED,
+                "Status code: ${status.statusCode}. Message: ${status.message}",
+            )
+            inMobiInterstitialAds.remove(request.identifier)
+            resumeOnce(
+                Result.failure(ChartboostMediationAdException(getChartboostMediationError(status.statusCode))),
+            )
+        }
+
+        override fun onRewardsUnlocked(
+            ad: InMobiInterstitial,
+            rewardMap: MutableMap<Any, Any>?,
+        ) {
+            rewardMap?.let {
+                PartnerLogController.log(DID_REWARD)
+                listener.onPartnerAdRewarded(
+                    PartnerAd(
+                        ad = ad,
+                        details = emptyMap(),
+                        request = request,
+                    ),
+                )
+            }
+        }
+
+        override fun onAdImpression(ad: InMobiInterstitial) {
+            PartnerLogController.log(DID_TRACK_IMPRESSION)
+            listener.onPartnerAdImpression(
+                PartnerAd(
+                    ad = ad,
+                    details = emptyMap(),
+                    request = request,
+                ),
+            )
+        }
+    }
 }
