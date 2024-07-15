@@ -122,6 +122,14 @@ class InMobiAdapter : PartnerAdapter {
     private var tcfString: String? = null
 
     /**
+     * Whether or not GDPR applies to this user.
+     * 1 GDPR applies in current context
+     * 0 - GDPR does not apply in current context
+     * null - undetermined
+     */
+    private var gdprApplies: Int? = null
+
+    /**
      * Initialize the InMobi SDK so that it is ready to request ads.
      *
      * @param context The current [Context].
@@ -357,7 +365,15 @@ class InMobiAdapter : PartnerAdapter {
         consents: Map<ConsentKey, ConsentValue>,
         modifiedKeys: Set<ConsentKey>,
     ) {
-        gdprConsentGiven = consents[ConsentKeys.GDPR_CONSENT_GIVEN]
+        val sharedPrefs =
+            context.getSharedPreferences("${context.packageName}_preferences", Context.MODE_PRIVATE)
+        gdprApplies = try {
+            sharedPrefs.getString("IABTCF_gdprApplies", null)?.toInt()
+        } catch (e: NumberFormatException) {
+            null
+        }
+        gdprConsentGiven = consents[configuration.partnerId]?.takeIf { it.isNotBlank() }
+            ?: consents[ConsentKeys.GDPR_CONSENT_GIVEN]?.takeIf { it.isNotBlank() }
         PartnerLogController.log(
             when (gdprConsentGiven) {
                 ConsentValues.GRANTED -> GDPR_CONSENT_GRANTED
@@ -377,6 +393,9 @@ class InMobiAdapter : PartnerAdapter {
     private fun buildGdprJsonObject(): JSONObject {
         return JSONObject().apply {
             try {
+                gdprApplies?.let {
+                    put(InMobiSdk.IM_GDPR_CONSENT_GDPR_APPLIES, it)
+                }
                 gdprConsentGiven?.let {
                     if (it != ConsentValues.DOES_NOT_APPLY) {
                         put(InMobiSdk.IM_GDPR_CONSENT_AVAILABLE, it == ConsentValues.GRANTED)
