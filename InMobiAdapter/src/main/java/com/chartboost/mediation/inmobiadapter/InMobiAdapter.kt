@@ -10,6 +10,7 @@ package com.chartboost.mediation.inmobiadapter
 import android.app.Activity
 import android.content.Context
 import com.chartboost.chartboostmediationsdk.ChartboostMediationSdk
+import com.chartboost.chartboostmediationsdk.ad.ChartboostMediationBannerAdView.ChartboostMediationBannerSize.Companion.asSize
 import com.chartboost.chartboostmediationsdk.domain.*
 import com.chartboost.chartboostmediationsdk.utils.PartnerLogController
 import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.BIDDER_INFO_FETCH_STARTED
@@ -435,7 +436,7 @@ class InMobiAdapter : PartnerAdapter {
             }
 
             (context as? Activity)?.let { activity ->
-                request.bannerSize?.size?.let { size ->
+                request.bannerSize?.asSize()?.let { size ->
                     // InMobi silently fails and causes the coroutine from returning a result.
                     // We will check for the banner size and return a failure if the sizes are either 0.
                     if ((size.width == 0) or (size.height == 0)) {
