@@ -369,7 +369,7 @@ class InMobiAdapter : PartnerAdapter {
         val sharedPrefs =
             context.getSharedPreferences("${context.packageName}_preferences", Context.MODE_PRIVATE)
         gdprApplies = try {
-            sharedPrefs.getString("IABTCF_gdprApplies", null)?.toInt()
+            sharedPrefs.getInt("IABTCF_gdprApplies", -1).takeIf { it != -1 }
         } catch (e: NumberFormatException) {
             null
         }
