@@ -5,14 +5,14 @@ The Chartboost Mediation InMobi adapter mediates InMobi via the Chartboost Media
 ## Minimum Requirements
 
 | Plugin                   | Version |
-| ------------------------ | ------- |
-| Chartboost Mediation SDK | 4.0.0+  |
+| ------------------------ |---------|
+| Chartboost Mediation SDK | 5.0.0+  |
 | Android API              | 21+     |
 
 ## Integration
 In your `build.gradle`, add the following entry:
 ```
-    implementation "com.chartboost:chartboost-mediation-adapter-inmobi:4.10.7.5.0"
+    implementation "com.chartboost:chartboost-mediation-adapter-inmobi:5.10.7.5.0"
 ```
 
 ## Contributions
