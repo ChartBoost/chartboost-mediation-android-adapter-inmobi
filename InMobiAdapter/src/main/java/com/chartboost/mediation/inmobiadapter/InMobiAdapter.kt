@@ -11,7 +11,16 @@ import android.app.Activity
 import android.content.Context
 import com.chartboost.chartboostmediationsdk.ChartboostMediationSdk
 import com.chartboost.chartboostmediationsdk.ad.ChartboostMediationBannerAdView.ChartboostMediationBannerSize.Companion.asSize
-import com.chartboost.chartboostmediationsdk.domain.*
+import com.chartboost.chartboostmediationsdk.domain.ChartboostMediationAdException
+import com.chartboost.chartboostmediationsdk.domain.ChartboostMediationError
+import com.chartboost.chartboostmediationsdk.domain.PartnerAd
+import com.chartboost.chartboostmediationsdk.domain.PartnerAdFormats
+import com.chartboost.chartboostmediationsdk.domain.PartnerAdListener
+import com.chartboost.chartboostmediationsdk.domain.PartnerAdLoadRequest
+import com.chartboost.chartboostmediationsdk.domain.PartnerAdPreBidRequest
+import com.chartboost.chartboostmediationsdk.domain.PartnerAdapter
+import com.chartboost.chartboostmediationsdk.domain.PartnerAdapterConfiguration
+import com.chartboost.chartboostmediationsdk.domain.PartnerConfiguration
 import com.chartboost.chartboostmediationsdk.utils.PartnerLogController
 import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.BIDDER_INFO_FETCH_STARTED
 import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.BIDDER_INFO_FETCH_SUCCEEDED
@@ -149,7 +158,11 @@ class InMobiAdapter : PartnerAdapter {
         ).trim()
             .takeIf { it.isNotEmpty() }
             ?.let { accountId ->
-                setConsents(context, partnerConfiguration.consents, partnerConfiguration.consents.keys)
+                setConsents(
+                    context,
+                    partnerConfiguration.consents,
+                    partnerConfiguration.consents.keys
+                )
                 val gdprConsent = buildGdprJsonObject()
                 inMobiInterstitialAds.clear()
 
@@ -164,21 +177,21 @@ class InMobiAdapter : PartnerAdapter {
                         accountId = accountId,
                         consentObject = gdprConsent,
                         sdkInitializationListener =
-                            object : SdkInitializationListener {
-                                override fun onInitializationComplete(error: Error?) {
-                                    resumeOnce(
-                                        error?.let {
-                                            PartnerLogController.log(SETUP_FAILED, "${it.message}")
-                                            Result.failure(
-                                                ChartboostMediationAdException(ChartboostMediationError.InitializationError.Unknown),
-                                            )
-                                        } ?: run {
-                                            PartnerLogController.log(SETUP_SUCCEEDED)
-                                            Result.success(emptyMap())
-                                        },
-                                    )
-                                }
-                            },
+                        object : SdkInitializationListener {
+                            override fun onInitializationComplete(error: Error?) {
+                                resumeOnce(
+                                    error?.let {
+                                        PartnerLogController.log(SETUP_FAILED, "${it.message}")
+                                        Result.failure(
+                                            ChartboostMediationAdException(ChartboostMediationError.InitializationError.Unknown),
+                                        )
+                                    } ?: run {
+                                        PartnerLogController.log(SETUP_SUCCEEDED)
+                                        Result.success(emptyMap())
+                                    },
+                                )
+                            }
+                        },
                     )
                 }
             } ?: run {
@@ -259,12 +272,14 @@ class InMobiAdapter : PartnerAdapter {
                     loadBannerAd(context, request, partnerAdListener)
                 }
             }
+
             PartnerAdFormats.INTERSTITIAL, PartnerAdFormats.REWARDED ->
                 loadFullScreenAd(
                     context,
                     request,
                     partnerAdListener,
                 )
+
             else -> {
                 PartnerLogController.log(LOAD_FAILED)
                 Result.failure(ChartboostMediationAdException(ChartboostMediationError.LoadError.UnsupportedAdFormat))
@@ -292,6 +307,7 @@ class InMobiAdapter : PartnerAdapter {
                 PartnerLogController.log(SHOW_SUCCEEDED)
                 Result.success(partnerAd)
             }
+
             PartnerAdFormats.INTERSTITIAL, PartnerAdFormats.REWARDED -> {
                 (partnerAd.ad as? InMobiInterstitial)?.let { ad ->
                     if (ad.isReady()) {
@@ -304,7 +320,10 @@ class InMobiAdapter : PartnerAdapter {
                                         it.resume(result)
                                     }
                                 } ?: run {
-                                    PartnerLogController.log(SHOW_FAILED, "Unable to resume continuation once. Continuation is null.")
+                                    PartnerLogController.log(
+                                        SHOW_FAILED,
+                                        "Unable to resume continuation once. Continuation is null."
+                                    )
                                 }
                             }
                             onShowSuccess = {
@@ -318,7 +337,11 @@ class InMobiAdapter : PartnerAdapter {
                                     "Placement: ${partnerAd.request.partnerPlacement}",
                                 )
                                 resumeOnce(
-                                    Result.failure(ChartboostMediationAdException(ChartboostMediationError.ShowError.Unknown)),
+                                    Result.failure(
+                                        ChartboostMediationAdException(
+                                            ChartboostMediationError.ShowError.Unknown
+                                        )
+                                    ),
                                 )
                             }
                             ad.show()
@@ -332,6 +355,7 @@ class InMobiAdapter : PartnerAdapter {
                     Result.failure(ChartboostMediationAdException(ChartboostMediationError.ShowError.AdNotFound))
                 }
             }
+
             else -> {
                 PartnerLogController.log(SHOW_FAILED)
                 Result.failure(ChartboostMediationAdException(ChartboostMediationError.ShowError.UnsupportedAdFormat))
@@ -441,7 +465,11 @@ class InMobiAdapter : PartnerAdapter {
                     // We will check for the banner size and return a failure if the sizes are either 0.
                     if ((size.width == 0) or (size.height == 0)) {
                         PartnerLogController.log(LOAD_FAILED)
-                        return Result.failure(ChartboostMediationAdException(ChartboostMediationError.LoadError.InvalidBannerSize))
+                        return Result.failure(
+                            ChartboostMediationAdException(
+                                ChartboostMediationError.LoadError.InvalidBannerSize
+                            )
+                        )
                     }
 
                     return suspendCancellableCoroutine { continuation ->
@@ -521,7 +549,15 @@ class InMobiAdapter : PartnerAdapter {
                 status: InMobiAdRequestStatus,
             ) {
                 PartnerLogController.log(LOAD_FAILED, status.message ?: "")
-                resumeOnce(Result.failure(ChartboostMediationAdException(getChartboostMediationError(status.statusCode))))
+                resumeOnce(
+                    Result.failure(
+                        ChartboostMediationAdException(
+                            getChartboostMediationError(
+                                status.statusCode
+                            )
+                        )
+                    )
+                )
             }
 
             override fun onAdDisplayed(ad: InMobiBanner) {}
@@ -620,6 +656,13 @@ class InMobiAdapter : PartnerAdapter {
         }
     }
 
+    /**
+     * Callback for interstitial ads.
+     *
+     * @param continuationRef A [WeakReference] to the [CancellableContinuation] to be resumed once the ad is shown.
+     * @param request A [PartnerAdLoadRequest] object containing the request.
+     * @param listener A [PartnerAdListener] to be notified of ad events.
+     */
     private class InterstitialAdListener(
         private val continuationRef: WeakReference<CancellableContinuation<Result<PartnerAd>>>,
         private val request: PartnerAdLoadRequest,
@@ -631,7 +674,10 @@ class InMobiAdapter : PartnerAdapter {
                     it.resume(result)
                 }
             } ?: run {
-                PartnerLogController.log(LOAD_FAILED, "Unable to resume continuation. Continuation is null.")
+                PartnerLogController.log(
+                    LOAD_FAILED,
+                    "Unable to resume continuation. Continuation is null."
+                )
             }
         }
 
