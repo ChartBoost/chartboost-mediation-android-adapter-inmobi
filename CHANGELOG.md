@@ -14,6 +14,9 @@ All official releases can be found on this repository's [releases page](https://
 ### 5.11.0.0.0
 - This version of the adapter has been certified with InMobi SDK 11.0.0.
 
+### 5.10.8.8.0
+- This version of the adapter has been certified with InMobi SDK 10.8.8.
+
 ### 5.10.8.7.0
 - This version of the adapter has been certified with InMobi SDK 10.8.7.
 
