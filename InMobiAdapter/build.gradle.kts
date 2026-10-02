@@ -42,7 +42,7 @@ android {
         minSdk = 21
         targetSdk = 34
         // If you touch the following line, don't forget to update scripts/get_rc_version.zsh
-        android.defaultConfig.versionName = System.getenv("VERSION_OVERRIDE") ?: "5.11.4.1.0"
+        android.defaultConfig.versionName = System.getenv("VERSION_OVERRIDE") ?: "5.11.5.0.0"
         buildConfigField("String", "CHARTBOOST_MEDIATION_INMOBI_ADAPTER_VERSION", "\"${android.defaultConfig.versionName}\"")
 
         consumerProguardFiles("proguard-rules.pro")
@@ -99,12 +99,12 @@ dependencies {
     "candidateImplementation"("com.chartboost:chartboost-mediation-sdk:5.0.0")
 
     // Partner SDK
-    implementation("com.inmobi.monetization:inmobi-ads-kotlin:11.4.1")
+    implementation("com.inmobi.monetization:inmobi-ads-kotlin:11.5.0")
 
     // Partner SDK Dependencies
     implementation("androidx.appcompat:appcompat:1.5.1")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.6.4")
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.4.1")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:11.5.0")
 }
 
 artifactory {
